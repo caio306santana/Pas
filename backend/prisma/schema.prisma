@@ -1,0 +1,244 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id            String         @id @default(uuid())
+  slug          String         @unique
+  name          String
+  logoUrl       String?
+  bannerUrl     String?
+  themeColor    String         @default("#ff4500")
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  categories    Category[]
+  coupons       Coupon[]
+  customers     Customer[]
+  deliveryAreas DeliveryArea[]
+  orders        Order[]
+  products      Product[]
+  configs       TenantConfig?
+  users         User[]
+}
+
+model TenantConfig {
+  id              String  @id @default(uuid())
+  tenantId        String  @unique
+  operatingHours  Json
+  whatsappNumber  String?
+  deliveryMinTime Int     @default(30)
+  deliveryMaxTime Int     @default(60)
+  paymentSettings Json
+  cashbackPercent Float   @default(0.0)
+  tenant          Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      UserRole @default(CASHIER)
+  tenantId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model Customer {
+  id              String    @id @default(uuid())
+  email           String
+  phone           String
+  name            String
+  password        String
+  cpf             String?
+  cashbackBalance Float     @default(0.0)
+  points          Int       @default(0)
+  tenantId        String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  addresses       Address[]
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orders          Order[]
+
+  @@unique([tenantId, email])
+  @@unique([tenantId, phone])
+}
+
+model Address {
+  id           String   @id @default(uuid())
+  customerId   String
+  street       String
+  number       String
+  neighborhood String
+  city         String
+  state        String
+  zipCode      String
+  latitude     Float?
+  longitude    Float?
+  isDefault    Boolean  @default(false)
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+}
+
+model Category {
+  id       String    @id @default(uuid())
+  name     String
+  slug     String
+  order    Int       @default(0)
+  tenantId String
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@unique([tenantId, slug])
+}
+
+model Product {
+  id           String               @id @default(uuid())
+  name         String
+  description  String
+  price        Float
+  promoPrice   Float?
+  imageUrl     String?
+  stock        Int                  @default(-1)
+  isAvailable  Boolean              @default(true)
+  label        ProductLabel?
+  prepTime     Int                  @default(15)
+  allergens    String[]
+  nutritional  Json?
+  categoryId   String
+  tenantId     String
+  orderItems   OrderItem[]
+  category     Category             @relation(fields: [categoryId], references: [id])
+  tenant       Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  optionGroups ProductOptionGroup[]
+}
+
+model ProductOptionGroup {
+  id        String          @id @default(uuid())
+  productId String
+  name      String
+  minSelect Int             @default(0)
+  maxSelect Int             @default(1)
+  options   ProductOption[]
+  product   Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model ProductOption {
+  id                   String             @id @default(uuid())
+  productOptionGroupId String
+  name                 String
+  price                Float              @default(0.0)
+  isAvailable          Boolean            @default(true)
+  group                ProductOptionGroup @relation(fields: [productOptionGroupId], references: [id], onDelete: Cascade)
+}
+
+model Order {
+  id                          String        @id @default(uuid())
+  orderNumber                 Int           @default(autoincrement())
+  status                      OrderStatus   @default(RECEIVED)
+  deliveryType                DeliveryType  @default(DELIVERY)
+  paymentMethod               PaymentMethod
+  paymentStatus               PaymentStatus @default(PENDING)
+  deliveryFee                 Float         @default(0.0)
+  subtotal                    Float
+  discount                    Float         @default(0.0)
+  total                       Float
+  changeFor                   Float?
+  notes                       String?
+  customerId                  String
+  tenantId                    String
+  deliveryAddressStreet       String?
+  deliveryAddressNumber       String?
+  deliveryAddressNeighborhood String?
+  deliveryAddressCity         String?
+  deliveryAddressZipCode      String?
+  createdAt                   DateTime      @default(now())
+  updatedAt                   DateTime      @updatedAt
+  customer                    Customer      @relation(fields: [customerId], references: [id])
+  tenant                      Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  items                       OrderItem[]
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  orderId   String
+  productId String
+  quantity  Int
+  price     Float
+  options   Json
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id])
+}
+
+model DeliveryArea {
+  id            String @id @default(uuid())
+  tenantId      String
+  neighborhood  String
+  fee           Float
+  estimatedTime Int    @default(45)
+  tenant        Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model Coupon {
+  id            String   @id @default(uuid())
+  tenantId      String
+  code          String
+  discountType  String
+  value         Float
+  minOrderValue Float    @default(0.0)
+  expiresAt     DateTime
+  isActive      Boolean  @default(true)
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, code])
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  CASHIER
+  KITCHEN
+  COURIER
+}
+
+enum OrderStatus {
+  RECEIVED
+  CONFIRMED
+  PREPARING
+  READY
+  DISPATCHED
+  DELIVERED
+  COMPLETED
+  CANCELLED
+}
+
+enum DeliveryType {
+  DELIVERY
+  PICKUP
+  IN_STORE
+}
+
+enum PaymentMethod {
+  PIX
+  CARD
+  CASH
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+enum ProductLabel {
+  NEW
+  PROMO
+  BESTSELLER
+  EXCLUSIVE
+}

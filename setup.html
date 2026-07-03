@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Menino Travesso — Setup Terminal</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@400;700;800&display=swap"
+    rel="stylesheet" />
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #0a0a0f;
+      --surface: #111118;
+      --border: #1e1e2e;
+      --primary: #FF385C;
+      --green: #22c55e;
+      --yellow: #f59e0b;
+      --blue: #60a5fa;
+      --purple: #a78bfa;
+      --text: #e2e8f0;
+      --muted: #64748b;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Outfit', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 24px 16px;
+    }
+
+    /* === HEADER === */
+    .header {
+      text-align: center;
+      margin-bottom: 32px;
+      animation: slideDown 0.6s ease;
+    }
+
+    .header .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255, 56, 92, 0.1);
+      border: 1px solid rgba(255, 56, 92, 0.2);
+      color: var(--primary);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 12px;
+      border-radius: 100px;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .header .badge .dot {
+      width: 6px;
+      height: 6px;
+      background: var(--primary);
+      border-radius: 50%;
+      animation: pulse 1.5s infinite;
+    }
+
+    .header h1 {
+      font-size: clamp(24px, 4vw, 36px);
+      font-weight: 800;
+      background: linear-gradient(135deg, #fff 0%, rgba(255, 255, 255, 0.6) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -0.5px;
+    }
+
+    .header p {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 500;
+      margin-top: 6px;
+    }
+
+    /* === MAIN WRAPPER === */
+    .container {
+      width: 100%;
+      max-width: 900px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 700px) {
+      .container {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* === TERMINAL CARD === */
+    .terminal-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+      animation: fadeUp 0.7s ease both;
+    }
+
+    .terminal-card:nth-child(2) {
+      animation-delay: 0.1s;
+    }
+
+    .terminal-card:nth-child(3) {
+      animation-delay: 0.2s;
+    }
+
+    .terminal-card.full-width {
+      grid-column: 1 / -1;
+    }
+
+    .terminal-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      background: rgba(255, 255, 255, 0.02);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .dot-group {
+      display: flex;
+      gap: 6px;
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .dot:hover {
+      opacity: 0.7;
+    }
+
+    .dot.red {
+      background: #FF5F57;
+    }
+
+    .dot.yellow {
+      background: #FEBC2E;
+    }
+
+    .dot.green {
+      background: #28C840;
+    }
+
+    .terminal-title {
+      flex: 1;
+      text-align: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      user-select: none;
+    }
+
+    .status-pill {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 100px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .status-pill.running {
+      background: rgba(34, 197, 94, 0.15);
+      color: var(--green);
+      border: 1px solid rgba(34, 197, 94, 0.2);
+    }
+
+    .status-pill.pending {
+      background: rgba(245, 158, 11, 0.12);
+      color: var(--yellow);
+      border: 1px solid rgba(245, 158, 11, 0.2);
+    }
+
+    .status-pill.error {
+      background: rgba(255, 56, 92, 0.12);
+      color: var(--primary);
+      border: 1px solid rgba(255, 56, 92, 0.2);
+    }
+
+    .terminal-body {
+      padding: 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12.5px;
+      line-height: 1.75;
+      min-height: 200px;
+      overflow-y: auto;
+      max-height: 360px;
+    }
+
+    /* === LINES === */
+    .line {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin-bottom: 2px;
+    }
+
+    .line .prompt {
+      color: var(--green);
+      font-weight: 600;
+      user-select: none;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .line .cmd {
+      color: var(--text);
+    }
+
+    .line .cmd .c {
+      color: #60a5fa;
+    }
+
+    /* command */
+    .line .cmd .a {
+      color: #fbbf24;
+    }
+
+    /* arg */
+    .line .cmd .s {
+      color: #86efac;
+    }
+
+    /* string */
+    .line .cmd .f {
+      color: #f87171;
+    }
+
+    /* flag/error */
+    .output-line {
+      margin-left: 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .output-line.success {
+      color: var(--green);
+    }
+
+    .output-line.warn {
+      color: var(--yellow);
+    }
+
+    .output-line.error {
+      color: var(--primary);
+    }
+
+    .output-line.info {
+      color: var(--blue);
+    }
+
+    .output-line.purple {
+      color: var(--purple);
+    }
+
+    .output-line.white {
+      color: var(--text);
+    }
+
+    .cursor {
+      display: inline-block;
+      width: 8px;
+      height: 14px;
+      background: var(--green);
+      border-radius: 1px;
+      animation: blink 1s step-end infinite;
+      margin-left: 2px;
+      vertical-align: middle;
+    }
+
+    /* === PROGRESS BAR === */
+    .progress-bar {
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      margin: 4px 0 8px;
+      overflow: hidden;
+    }
+
+    .progress-bar .fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary), #f97316);
+      border-radius: 2px;
+      transition: width 0.5s ease;
+    }
+
+    /* === CHECKLIST === */
+    .checklist {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 4px 0;
+    }
+
+    .check-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .check-icon {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      flex-shrink: 0;
+    }
+
+    .check-icon.done {
+      background: rgba(34, 197, 94, 0.15);
+      color: var(--green);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+
+    .check-icon.todo {
+      background: rgba(100, 116, 139, 0.12);
+      color: var(--muted);
+      border: 1px solid rgba(100, 116, 139, 0.2);
+    }
+
+    .check-icon.loading {
+      background: rgba(245, 158, 11, 0.12);
+      color: var(--yellow);
+      border: 1px solid rgba(245, 158, 11, 0.2);
+      animation: spin 1s linear infinite;
+    }
+
+    .check-icon.fail {
+      background: rgba(255, 56, 92, 0.12);
+      color: var(--primary);
+      border: 1px solid rgba(255, 56, 92, 0.2);
+    }
+
+    .check-text.done {
+      color: var(--text);
+    }
+
+    .check-text.todo {
+      color: var(--muted);
+    }
+
+    .check-text.loading {
+      color: var(--yellow);
+    }
+
+    .check-text.fail {
+      color: var(--primary);
+    }
+
+    /* === SETUP GUIDE === */
+    .setup-guide {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      animation: fadeUp 0.9s ease both;
+      animation-delay: 0.3s;
+      grid-column: 1 / -1;
+    }
+
+    .guide-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .guide-header h2 {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .guide-header .icon {
+      font-size: 18px;
+    }
+
+    .guide-body {
+      padding: 20px;
+    }
+
+    .step {
+      display: flex;
+      gap: 16px;
+      padding-bottom: 20px;
+      position: relative;
+    }
+
+    .step:not(:last-child)::before {
+      content: '';
+      position: absolute;
+      left: 15px;
+      top: 32px;
+      bottom: 0;
+      width: 1px;
+      background: var(--border);
+    }
+
+    .step-num {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 1;
+    }
+
+    .step-num.done {
+      background: rgba(34, 197, 94, 0.15);
+      color: var(--green);
+      border: 1px solid rgba(34, 197, 94, 0.25);
+    }
+
+    .step-num.active {
+      background: rgba(255, 56, 92, 0.15);
+      color: var(--primary);
+      border: 1px solid rgba(255, 56, 92, 0.25);
+    }
+
+    .step-num.todo {
+      background: rgba(100, 116, 139, 0.1);
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+
+    .step-content {
+      flex: 1;
+      padding-top: 4px;
+    }
+
+    .step-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .step-desc {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.6;
+      margin-bottom: 8px;
+    }
+
+    .code-block {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--green);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .code-block:hover {
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .code-block .copy-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 6px;
+      padding: 3px 8px;
+      font-size: 10px;
+      cursor: pointer;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 600;
+      text-transform: uppercase;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .code-block .copy-btn:hover {
+      color: var(--text);
+      border-color: var(--muted);
+    }
+
+    .code-block .copy-btn.copied {
+      color: var(--green);
+      border-color: rgba(34, 197, 94, 0.3);
+    }
+
+    .highlight {
+      color: var(--yellow);
+    }
+
+    /* === ANIMATIONS === */
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.4;
+      }
+    }
+
+    @keyframes blink {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0;
+      }
+    }
+
+    @keyframes spin {
+      from {
+        transform: rotate(0deg);
+      }
+
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @keyframes slideDown {
+      from {
+        transform: translateY(-20px);
+        opacity: 0;
+      }
+
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    @keyframes fadeUp {
+      from {
+        transform: translateY(16px);
+        opacity: 0;
+      }
+
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    @keyframes typeIn {
+      from {
+        width: 0;
+      }
+
+      to {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ====== HEADER ====== -->
+  <div class="header">
+    <div class="badge"><span class="dot"></span> Sistema de Delivery</div>
+    <h1>Menino Travesso — Dev Console</h1>
+    <p>Central de setup, instalação e testes da API de delivery</p>
+  </div>
+
+  <div class="container">
+
+    <!-- ====== TERMINAL 1: DIAGNÓSTICO ====== -->
+    <div class="terminal-card">
+      <div class="terminal-header">
+        <div class="dot-group">
+          <div class="dot red"></div>
+          <div class="dot yellow"></div>
+          <div class="dot green"></div>
+        </div>
+        <span class="terminal-title">system-check — diagnostics</span>
+        <span class="status-pill error">⚠ Node.js Missing</span>
+      </div>
+      <div class="terminal-body">
+        <div class="line">
+          <span class="prompt">❯</span>
+          <span class="cmd"><span class="c">where.exe</span> <span class="a">node</span></span>
+        </div>
+        <div class="output-line error">INFO: Could not find files for the given pattern(s).</div>
+
+        <div class="line" style="margin-top:10px">
+          <span class="prompt">❯</span>
+          <span class="cmd"><span class="c">node</span> <span class="f">--version</span></span>
+        </div>
+        <div class="output-line error">node : O termo 'node' não é reconhecido...</div>
+
+        <div class="line" style="margin-top:10px">
+          <span class="prompt">❯</span>
+          <span class="cmd"><span class="c">Get-Command</span> <span class="a">npm</span> <span class="f">-ErrorAction
+              SilentlyContinue</span></span>
+        </div>
+        <div class="output-line error">(Sem resultado — npm não instalado)</div>
+
+        <div
+          style="margin-top:14px; padding:10px 12px; background:rgba(255,56,92,0.06); border:1px solid rgba(255,56,92,0.2); border-radius:8px; font-size:11px; color:#f87171; line-height:1.6;">
+          ⚠️ <strong>Node.js não encontrado no PATH.</strong><br />
+          Instale o Node.js LTS para continuar. Veja o guia ao lado.
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== TERMINAL 2: STATUS CHECKLIST ====== -->
+    <div class="terminal-card">
+      <div class="terminal-header">
+        <div class="dot-group">
+          <div class="dot red"></div>
+          <div class="dot yellow"></div>
+          <div class="dot green"></div>
+        </div>
+        <span class="terminal-title">startup — health-check</span>
+        <span class="status-pill pending">Aguardando Setup</span>
+      </div>
+      <div class="terminal-body">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:12px;font-weight:600;">CHECKLIST DE REQUISITOS</div>
+        <div class="checklist">
+          <div class="check-item">
+            <div class="check-icon fail">✗</div>
+            <span class="check-text fail">Node.js v18+ instalado</span>
+          </div>
+          <div class="check-item">
+            <div class="check-icon fail">✗</div>
+            <span class="check-text fail">npm / npx disponível no PATH</span>
+          </div>
+          <div class="check-item">
+            <div class="check-icon todo">○</div>
+            <span class="check-text todo">Docker Desktop (PostgreSQL + Redis)</span>
+          </div>
+          <div class="check-item">
+            <div class="check-icon todo">○</div>
+            <span class="check-text todo">backend/node_modules instalado</span>
+          </div>
+          <div class="check-item">
+            <div class="check-icon todo">○</div>
+            <span class="check-text todo">Prisma migrate + seed executados</span>
+          </div>
+          <div class="check-item">
+            <div class="check-icon todo">○</div>
+            <span class="check-text todo">NestJS API rodando em :3001</span>
+          </div>
+          <div class="check-item">
+            <div class="check-icon todo">○</div>
+            <span class="check-text todo">frontend/node_modules instalado</span>
+          </div>
+          <div class="check-item">
+            <div class="check-icon todo">○</div>
+            <span class="check-text todo">Next.js rodando em :3000</span>
+          </div>
+        </div>
+
+        <div style="margin-top:16px;">
+          <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700;margin-bottom:6px;">
+            <span style="color:var(--muted)">Progresso Geral</span>
+            <span style="color:var(--primary)">0 / 8</span>
+          </div>
+          <div class="progress-bar">
+            <div class="fill" style="width:0%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== TERMINAL 3: SIMULAÇÃO DO STARTUP (quando pronto) ====== -->
+    <div class="terminal-card full-width">
+      <div class="terminal-header">
+        <div class="dot-group">
+          <div class="dot red"></div>
+          <div class="dot yellow"></div>
+          <div class="dot green"></div>
+        </div>
+        <span class="terminal-title">nest-api — backend server (port 3001)</span>
+        <span class="status-pill pending">Offline — aguardando Node.js</span>
+      </div>
+      <div class="terminal-body">
+        <div class="line">
+          <span class="prompt">❯</span>
+          <span class="cmd"><span class="c">cd</span> <span class="s">backend</span> && <span class="c">npm</span> <span
+              class="a">run</span> <span class="s">start:dev</span></span>
+        </div>
+        <div class="output-line info">▶ Starting NestJS in watch mode...</div>
+        <div class="output-line purple">[Nest] LOG [NestFactory] Starting Nest application...</div>
+        <div class="output-line purple">[Nest] LOG [InstanceLoader] AppModule dependencies initialized</div>
+        <div class="output-line purple">[Nest] LOG [InstanceLoader] AuthModule dependencies initialized</div>
+        <div class="output-line purple">[Nest] LOG [InstanceLoader] MenuModule dependencies initialized</div>
+        <div class="output-line purple">[Nest] LOG [InstanceLoader] OrderModule dependencies initialized</div>
+        <div class="output-line purple">[Nest] LOG [InstanceLoader] RealtimeModule dependencies initialized</div>
+        <div class="output-line purple">[Nest] LOG [InstanceLoader] QueueModule dependencies initialized</div>
+        <div class="output-line success">[Nest] LOG [RoutesResolver] TenantController {/tenants} mapped</div>
+        <div class="output-line success">[Nest] LOG [RoutesResolver] AuthController {/auth} mapped</div>
+        <div class="output-line success">[Nest] LOG [RoutesResolver] MenuController {/menu} mapped</div>
+        <div class="output-line success">[Nest] LOG [RoutesResolver] OrderController {/orders} mapped</div>
+        <div class="output-line warn">[Nest] LOG [WebSocketsController] RealtimeGateway subscribed to "message" events
+        </div>
+        <div class="output-line" style="color:#60a5fa;">────────────────────────────────────────────────</div>
+        <div class="output-line success">🚀 Nest API is running on: <span
+            style="font-weight:700;color:#22c55e;">http://localhost:3001</span></div>
+        <div class="output-line info">📖 Swagger docs: <span
+            style="font-weight:700;color:#60a5fa;">http://localhost:3001/api/docs</span></div>
+        <div class="output-line" style="color:#60a5fa;">────────────────────────────────────────────────</div>
+        <div class="line" style="margin-top:6px;">
+          <span class="prompt">❯</span>
+          <span class="cursor"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== GUIA DE INSTALAÇÃO ====== -->
+    <div class="setup-guide">
+      <div class="guide-header">
+        <span class="icon">📋</span>
+        <h2>Guia de Setup — Execute esses passos para rodar o sistema</h2>
+      </div>
+      <div class="guide-body">
+
+        <!-- STEP 1 -->
+        <div class="step">
+          <div class="step-num active">1</div>
+          <div class="step-content">
+            <div class="step-title">Instalar Node.js LTS</div>
+            <div class="step-desc">
+              O Node.js não está instalado no sistema. Baixe o instalador oficial LTS (v20+) e execute. Reinicie o VS
+              Code depois.
+            </div>
+            <div class="code-block"
+              onclick="copyCmd(this, 'https://nodejs.org/en/download/prebuilt-installer/current')">
+              <span>🌐 https://nodejs.org/en/download</span>
+              <button class="copy-btn">Copiar URL</button>
+            </div>
+            <div style="margin-top:8px; font-size:11px; color:var(--muted); font-family:'JetBrains Mono',monospace;">
+              Após instalar, verifique: <span style="color:var(--green);">node -v && npm -v</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 2 -->
+        <div class="step">
+          <div class="step-num todo">2</div>
+          <div class="step-content">
+            <div class="step-title">Iniciar banco de dados (Docker)</div>
+            <div class="step-desc">
+              Na pasta raiz do projeto, suba o PostgreSQL e o Redis com Docker Compose. Se não tiver Docker, baixe em
+              <strong>docker.com</strong>.
+            </div>
+            <div class="code-block" onclick="copyCmd(this, 'docker-compose up -d')">
+              <span><span class="highlight">$</span> docker-compose up -d</span>
+              <button class="copy-btn">Copiar</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 3 -->
+        <div class="step">
+          <div class="step-num todo">3</div>
+          <div class="step-content">
+            <div class="step-title">Instalar dependências do Backend</div>
+            <div class="step-desc">
+              Acesse a pasta <code style="color:var(--yellow);">backend/</code> e instale os pacotes (NestJS, Prisma,
+              Socket.IO, BullMQ etc.)
+            </div>
+            <div class="code-block" onclick="copyCmd(this, 'cd backend && npm install')">
+              <span><span class="highlight">$</span> cd backend && npm install</span>
+              <button class="copy-btn">Copiar</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 4 -->
+        <div class="step">
+          <div class="step-num todo">4</div>
+          <div class="step-content">
+            <div class="step-title">Criar banco de dados + Seed do Menino Travesso</div>
+            <div class="step-desc">
+              Execute as migrations do Prisma para criar as tabelas no PostgreSQL e popule com dados iniciais do
+              trailer.
+            </div>
+            <div class="code-block" onclick="copyCmd(this, 'npx prisma migrate dev --name init && npm run db:seed')"
+              style="margin-bottom:6px;">
+              <span><span class="highlight">$</span> npx prisma migrate dev --name init</span>
+              <button class="copy-btn">Copiar</button>
+            </div>
+            <div class="code-block" onclick="copyCmd(this, 'npm run db:seed')">
+              <span><span class="highlight">$</span> npm run db:seed</span>
+              <button class="copy-btn">Copiar</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 5 -->
+        <div class="step">
+          <div class="step-num todo">5</div>
+          <div class="step-content">
+            <div class="step-title">Iniciar o Backend (NestJS API)</div>
+            <div class="step-desc">
+              Rode o servidor em modo desenvolvimento. A API estará em <strong>localhost:3001</strong> e o Swagger em
+              <strong>localhost:3001/api/docs</strong>.
+            </div>
+            <div class="code-block" onclick="copyCmd(this, 'npm run start:dev')">
+              <span><span class="highlight">$</span> npm run start:dev</span>
+              <button class="copy-btn">Copiar</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 6 -->
+        <div class="step">
+          <div class="step-num todo">6</div>
+          <div class="step-content">
+            <div class="step-title">Instalar + iniciar o Frontend (Next.js)</div>
+            <div class="step-desc">
+              Em um segundo terminal, vá para a pasta <code style="color:var(--yellow);">frontend/</code>, instale as
+              dependências e suba o servidor. O site estará em <strong>localhost:3000</strong>.
+            </div>
+            <div class="code-block" onclick="copyCmd(this, 'cd ../frontend && npm install && npm run dev')">
+              <span><span class="highlight">$</span> cd ../frontend && npm install && npm run dev</span>
+              <button class="copy-btn">Copiar</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 7 (Teste) -->
+        <div class="step">
+          <div class="step-num todo">7</div>
+          <div class="step-content">
+            <div class="step-title">Testar o sistema completo</div>
+            <div class="step-desc">
+              Abra os links abaixo para confirmar que tudo está funcionando:
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:6px;">
+              <a href="http://localhost:3000/t/menino-travesso" target="_blank" style="text-decoration:none;">
+                <div class="code-block" style="flex-direction:column;align-items:flex-start;gap:2px;">
+                  <span style="font-size:10px;color:var(--muted);font-weight:700;">CARDÁPIO DIGITAL</span>
+                  <span style="color:var(--green);">localhost:3000/t/menino-travesso</span>
+                </div>
+              </a>
+              <a href="http://localhost:3001/api/docs" target="_blank" style="text-decoration:none;">
+                <div class="code-block" style="flex-direction:column;align-items:flex-start;gap:2px;">
+                  <span style="font-size:10px;color:var(--muted);font-weight:700;">SWAGGER API DOCS</span>
+                  <span style="color:var(--blue);">localhost:3001/api/docs</span>
+                </div>
+              </a>
+              <a href="http://localhost:3000/admin/login" target="_blank" style="text-decoration:none;">
+                <div class="code-block" style="flex-direction:column;align-items:flex-start;gap:2px;">
+                  <span style="font-size:10px;color:var(--muted);font-weight:700;">PAINEL ADMIN</span>
+                  <span style="color:var(--purple);">localhost:3000/admin/login</span>
+                </div>
+              </a>
+              <div class="code-block" style="flex-direction:column;align-items:flex-start;gap:2px;">
+                <span style="font-size:10px;color:var(--muted);font-weight:700;">LOGIN ADMIN</span>
+                <span style="color:var(--yellow);">admin@menino.com / admin123</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div><!-- /container -->
+
+  <script>
+    function copyCmd(el, text) {
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = el.querySelector('.copy-btn');
+        if (btn) {
+          btn.textContent = 'Copiado!';
+          btn.classList.add('copied');
+          setTimeout(() => {
+            btn.textContent = 'Copiar';
+            btn.classList.remove('copied');
+          }, 2000);
+        }
+      });
+    }
+  </script>
+
+</body>
+
+</html>
