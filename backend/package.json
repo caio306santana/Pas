@@ -27,6 +27,7 @@
     "@nestjs/websockets": "^10.0.0",
     "@prisma/adapter-neon": "^7.8.0",
     "@prisma/client": "^5.0.0",
+    "@types/multer": "^2.2.0",
     "bcrypt": "^5.1.1",
     "bullmq": "^4.10.0",
     "class-transformer": "^0.5.1",

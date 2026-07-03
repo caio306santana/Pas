@@ -1,4 +1,7 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Headers, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Headers, BadRequestException, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname, join } from 'path';
 import { MenuService } from './menu.service';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 
@@ -56,5 +59,42 @@ export class MenuController {
   @ApiOperation({ summary: 'Delete a product (Admin)' })
   async deleteProduct(@Param('id') id: string) {
     return this.menuService.deleteProduct(id);
+  }
+
+  @Post('product/:id/image')
+  @ApiOperation({ summary: 'Upload image for a product (Admin)' })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: join(__dirname, '..', '..', '..', '..', '..', 'frontend', 'public', 'uploads'),
+        filename: (_req, file, cb) => {
+          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+          cb(null, `product-${uniqueSuffix}${extname(file.originalname)}`);
+        },
+      }),
+      fileFilter: (_req, file, cb) => {
+        if (file.mimetype.match(/\/(jpg|jpeg|png|webp|gif)$/)) {
+          cb(null, true);
+        } else {
+          cb(new BadRequestException('Apenas imagens são permitidas (jpg, png, webp, gif).'), false);
+        }
+      },
+      limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+    }),
+  )
+  async uploadProductImage(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) throw new BadRequestException('Nenhum arquivo enviado.');
+    const imageUrl = `/uploads/${file.filename}`;
+    return this.menuService.updateProduct(id, { imageUrl });
+  }
+
+  @Get('admin/products')
+  @ApiOperation({ summary: 'Get all products including unavailable ones (Admin)' })
+  async getAllProducts(@Headers('x-tenant-id') tenantId: string) {
+    if (!tenantId) throw new BadRequestException('x-tenant-id header is missing.');
+    return this.menuService.getAllProducts(tenantId);
   }
 }

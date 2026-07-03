@@ -103,4 +103,15 @@ export class MenuService {
 
     return product;
   }
+
+  async getAllProducts(tenantId: string) {
+    return this.prisma.product.findMany({
+      where: { tenantId },
+      include: {
+        category: true,
+        optionGroups: { include: { options: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
 }
