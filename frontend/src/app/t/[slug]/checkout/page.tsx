@@ -560,7 +560,7 @@ export default function CheckoutPage() {
       </div>
 
       {/* 5. Sticky checkout footer */}
-      {customer && (
+      {mounted && customer && (
         <div className="fixed bottom-0 left-0 right-0 z-30 bg-card border-t border-border py-5 px-6 shadow-2xl">
           <div className="max-w-xl mx-auto flex items-center justify-between gap-4">
             <div className="flex flex-col">
