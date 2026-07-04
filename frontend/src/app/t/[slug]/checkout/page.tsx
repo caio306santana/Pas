@@ -354,7 +354,7 @@ export default function CheckoutPage() {
         )}
 
         {/* 3. Address details (If delivery) */}
-        {customer && deliveryType === 'DELIVERY' && (
+        {mounted && customer && deliveryType === 'DELIVERY' && (
           <div className="bg-card rounded-2xl border border-border p-5 space-y-4 shadow-sm">
             <h3 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">Endereço de Entrega</h3>
             
@@ -415,7 +415,7 @@ export default function CheckoutPage() {
         )}
 
         {/* 4. Payments Section */}
-        {customer && (
+        {mounted && customer && (
           <div className="bg-card rounded-2xl border border-border p-5 space-y-4 shadow-sm">
             <h3 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">Forma de Pagamento</h3>
             
@@ -545,7 +545,7 @@ export default function CheckoutPage() {
         )}
 
         {/* Observações / Instruções */}
-        {customer && (
+        {mounted && customer && (
           <div className="bg-card rounded-2xl border border-border p-5 space-y-3 shadow-sm">
             <h3 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">Observações / Instruções</h3>
             <textarea
