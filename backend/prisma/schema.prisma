@@ -113,6 +113,8 @@ model Product {
   nutritional  Json?
   categoryId   String
   tenantId     String
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @default(now()) @updatedAt
   orderItems   OrderItem[]
   category     Category             @relation(fields: [categoryId], references: [id])
   tenant       Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)

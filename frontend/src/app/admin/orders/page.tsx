@@ -28,6 +28,8 @@ interface Order {
   deliveryAddressStreet?: string;
   deliveryAddressNumber?: string;
   deliveryAddressNeighborhood?: string;
+  notes?: string;
+  changeFor?: number;
   items: OrderItem[];
 }
 
@@ -184,6 +186,18 @@ export default function AdminOrdersPage() {
                   {order.deliveryType === 'DELIVERY' && (
                     <p className="rounded-xl border border-slate-800 bg-slate-950 p-3 text-xs font-semibold text-slate-400">
                       {order.deliveryAddressStreet}, {order.deliveryAddressNumber} - {order.deliveryAddressNeighborhood}
+                    </p>
+                  )}
+
+                  {order.notes && (
+                    <p className="rounded-xl border border-slate-800 bg-amber-500/10 text-amber-200 p-3 text-xs font-bold">
+                      ⚠️ Observações: {order.notes}
+                    </p>
+                  )}
+
+                  {order.paymentMethod === 'CASH' && order.changeFor && (
+                    <p className="rounded-xl border border-slate-800 bg-emerald-500/10 text-emerald-300 p-3 text-xs font-bold">
+                      💵 Troco para: R$ {order.changeFor.toFixed(2)} (Troco devido: R$ {(order.changeFor - order.total).toFixed(2)})
                     </p>
                   )}
 

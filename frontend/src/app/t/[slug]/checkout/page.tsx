@@ -31,7 +31,12 @@ export default function CheckoutPage() {
     clearCart,
   } = useCartStore();
 
+  const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   
   // Auth state if not logged in
   const [authMode, setAuthMode] = useState<'LOGIN' | 'REGISTER'>('LOGIN');
@@ -61,6 +66,17 @@ export default function CheckoutPage() {
     expiry: '',
     cvv: '',
   });
+
+  // Observações
+  const [userNotes, setUserNotes] = useState('');
+  // Tipo de pagamento com cartão
+  const [cardPaymentType, setCardPaymentType] = useState<'ONLINE' | 'DELIVERY_MACHINE' | 'PICKUP_MACHINE'>('ONLINE');
+
+  useEffect(() => {
+    if (cardPaymentType !== 'ONLINE') {
+      setCardPaymentType(deliveryType === 'DELIVERY' ? 'DELIVERY_MACHINE' : 'PICKUP_MACHINE');
+    }
+  }, [deliveryType, cardPaymentType]);
 
   // Load defaults from state
   useEffect(() => {
@@ -175,6 +191,20 @@ export default function CheckoutPage() {
       // Fetch tenant data
       const tenantData = await apiRequest(`/tenants/${slug}`);
 
+      let notesParts: string[] = [];
+      if (userNotes.trim()) {
+        notesParts.push(userNotes.trim());
+      }
+      if (paymentMethod === 'CARD') {
+        if (cardPaymentType === 'DELIVERY_MACHINE') {
+          notesParts.push('[PAGAMENTO: Cartão na Entrega]');
+        } else if (cardPaymentType === 'PICKUP_MACHINE') {
+          notesParts.push('[PAGAMENTO: Cartão na Retirada]');
+        } else {
+          notesParts.push('[PAGAMENTO: Cartão Online]');
+        }
+      }
+
       const orderPayload = {
         customerId: customer.id,
         deliveryType,
@@ -186,6 +216,7 @@ export default function CheckoutPage() {
         city: deliveryType === 'DELIVERY' ? addressForm.city : undefined,
         zipCode: deliveryType === 'DELIVERY' ? addressForm.cep : undefined,
         couponCode: couponCode || undefined,
+        notes: notesParts.length > 0 ? notesParts.join(' | ') : undefined,
         items: items.map((i) => ({
           productId: i.productId,
           quantity: i.quantity,
@@ -229,7 +260,11 @@ export default function CheckoutPage() {
       <div className="max-w-xl mx-auto px-4 pt-20 space-y-6 animate-fade-in">
         
         {/* 2. Customer Auth Step (If not logged in) */}
-        {!customer ? (
+        {!mounted ? (
+          <div className="bg-card rounded-2xl border border-border p-6 h-40 animate-pulse flex items-center justify-center text-muted-foreground text-xs font-semibold">
+            Carregando identificação...
+          </div>
+        ) : !customer ? (
           <div className="bg-card rounded-2xl border border-border p-6 space-y-4 shadow-sm">
             <div className="text-center space-y-2">
               <h2 className="text-lg font-bold">Identifique-se</h2>
@@ -432,29 +467,65 @@ export default function CheckoutPage() {
 
             {paymentMethod === 'CARD' && (
               <div className="space-y-3.5 pt-2">
-                <input
-                  type="text"
-                  placeholder="Número do Cartão"
-                  value={cardForm.number}
-                  onChange={(e) => setCardForm({ ...cardForm, number: e.target.value })}
-                  className="w-full p-3 rounded-xl bg-background border border-border text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-                <div className="grid grid-cols-2 gap-2">
-                  <input
-                    type="text"
-                    placeholder="Validade (MM/AA)"
-                    value={cardForm.expiry}
-                    onChange={(e) => setCardForm({ ...cardForm, expiry: e.target.value })}
-                    className="p-3 rounded-xl bg-background border border-border text-sm font-semibold focus:outline-none"
-                  />
-                  <input
-                    type="text"
-                    placeholder="CVV"
-                    value={cardForm.cvv}
-                    onChange={(e) => setCardForm({ ...cardForm, cvv: e.target.value })}
-                    className="p-3 rounded-xl bg-background border border-border text-sm font-semibold focus:outline-none"
-                  />
+                <div className="flex bg-muted rounded-xl p-1 text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setCardPaymentType('ONLINE')}
+                    className={`flex-1 py-2 rounded-lg transition-all ${
+                      cardPaymentType === 'ONLINE' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+                    }`}
+                  >
+                    Pagar Online
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCardPaymentType(deliveryType === 'DELIVERY' ? 'DELIVERY_MACHINE' : 'PICKUP_MACHINE')}
+                    className={`flex-1 py-2 rounded-lg transition-all ${
+                      cardPaymentType !== 'ONLINE' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+                    }`}
+                  >
+                    {deliveryType === 'DELIVERY' ? 'Pagar na Entrega' : 'Pagar na Retirada'}
+                  </button>
                 </div>
+
+                {cardPaymentType === 'ONLINE' ? (
+                  <div className="space-y-3.5">
+                    <input
+                      type="text"
+                      placeholder="Número do Cartão"
+                      value={cardForm.number}
+                      onChange={(e) => setCardForm({ ...cardForm, number: e.target.value })}
+                      className="w-full p-3 rounded-xl bg-background border border-border text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        placeholder="Validade (MM/AA)"
+                        value={cardForm.expiry}
+                        onChange={(e) => setCardForm({ ...cardForm, expiry: e.target.value })}
+                        className="p-3 rounded-xl bg-background border border-border text-sm font-semibold focus:outline-none"
+                      />
+                      <input
+                        type="text"
+                        placeholder="CVV"
+                        value={cardForm.cvv}
+                        onChange={(e) => setCardForm({ ...cardForm, cvv: e.target.value })}
+                        className="p-3 rounded-xl bg-background border border-border text-sm font-semibold focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-muted p-4 rounded-xl space-y-2 text-xs text-muted-foreground font-semibold">
+                    <p className="flex items-center gap-2 text-foreground font-bold">
+                      <CreditCard className="h-4.5 w-4.5 text-primary" /> Pagar com Maquininha
+                    </p>
+                    <p>
+                      {deliveryType === 'DELIVERY' 
+                        ? 'O entregador levará a maquininha de cartão (Crédito/Débito) até o seu endereço.'
+                        : 'Você realizará o pagamento na maquininha de cartão (Crédito/Débito) ao retirar seu pedido no balcão.'}
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -470,6 +541,19 @@ export default function CheckoutPage() {
                 />
               </div>
             )}
+          </div>
+        )}
+
+        {/* Observações / Instruções */}
+        {customer && (
+          <div className="bg-card rounded-2xl border border-border p-5 space-y-3 shadow-sm">
+            <h3 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">Observações / Instruções</h3>
+            <textarea
+              placeholder="Ex: sem cebola, ponto da massa, portaria do prédio, etc."
+              value={userNotes}
+              onChange={(e) => setUserNotes(e.target.value)}
+              className="w-full p-3 rounded-xl bg-background border border-border text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary h-20 resize-none"
+            />
           </div>
         )}
 
