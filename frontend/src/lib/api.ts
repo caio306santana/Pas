@@ -1,4 +1,4 @@
-export const API_BASE = 'http://localhost:3001';
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 export async function apiRequest(path: string, options: RequestInit = {}) {
   const headers = new Headers(options.headers || {});
