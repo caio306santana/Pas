@@ -1,6 +1,9 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
+  turbopack: {
+    root: process.cwd(),
+  },
   // Permite imagens de qualquer origem (uploads locais e futuro CDN)
   images: {
     remotePatterns: [

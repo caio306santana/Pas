@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable @next/next/no-img-element -- tenant logos may use dynamic URLs */
+
 import React, { useEffect, useState, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { LayoutDashboard, ShoppingBag, ChefHat, LogOut, UtensilsCrossed, Bell, BellRing } from 'lucide-react';

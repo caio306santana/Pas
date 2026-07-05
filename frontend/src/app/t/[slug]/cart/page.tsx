@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable @next/next/no-img-element -- tenant product images may use dynamic URLs */
+
 import React, { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useCartStore } from '@/store/cartStore';

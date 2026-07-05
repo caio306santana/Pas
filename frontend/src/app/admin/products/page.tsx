@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+/* eslint-disable @next/next/no-img-element -- uploaded images can come from tenant-configured URLs */
+
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import AdminLayout from '@/components/AdminLayout';
 import { apiRequest, API_BASE } from '@/lib/api';
 import {
@@ -67,12 +69,12 @@ export default function AdminProductsPage() {
     ? (() => { try { return JSON.parse(localStorage.getItem('menino_staff_data') || '').token; } catch { return ''; } })()
     : '';
 
-  const showToast = (msg: string, type: 'ok' | 'err' = 'ok') => {
+  const showToast = useCallback((msg: string, type: 'ok' | 'err' = 'ok') => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3500);
-  };
+  }, []);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!tenantId) return;
     setLoading(true);
     try {
@@ -87,9 +89,9 @@ export default function AdminProductsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [tenantId, showToast]);
 
-  useEffect(() => { loadData(); }, [tenantId]);
+  useEffect(() => { loadData(); }, [loadData]);
 
   const openCreate = () => {
     setEditingId(null);
@@ -398,7 +400,7 @@ export default function AdminProductsPage() {
           <div className="text-center py-16 text-slate-500">
             <UtensilsCrossed className="h-12 w-12 mx-auto mb-3 opacity-30" />
             <p className="font-bold">Nenhum produto cadastrado ainda.</p>
-            <p className="text-xs mt-1">Clique em "Novo Produto" para começar.</p>
+            <p className="text-xs mt-1">Clique em &quot;Novo Produto&quot; para começar.</p>
           </div>
         ) : (
           <div className="space-y-2">
