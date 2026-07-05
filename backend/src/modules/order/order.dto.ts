@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsEnum, IsArray, IsOptional, IsNumber, ValidateNested } from 'class-validator';
+import { IsString, IsNotEmpty, IsEnum, IsArray, IsOptional, IsNumber, ValidateNested, IsInt, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import { DeliveryType, PaymentMethod } from '@prisma/client';
 import { ApiProperty } from '@nestjs/swagger';
@@ -26,7 +26,8 @@ export class OrderItemDto {
   productId: string;
 
   @ApiProperty({ example: 1 })
-  @IsNumber()
+  @IsInt()
+  @Min(1)
   quantity: number;
 
   @ApiProperty({ type: [OrderOptionDto], required: false })

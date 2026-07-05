@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useCartStore } from '@/store/cartStore';
 import { apiRequest } from '@/lib/api';
+import { tokenizeCard } from '@/lib/mercadoPago';
 import { 
   ChevronLeft, MapPin, CreditCard, Landmark, DollarSign, 
   User, Mail, Phone, Lock, Sparkles, CheckCircle, Search 
@@ -33,6 +34,8 @@ export default function CheckoutPage() {
 
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [paymentError, setPaymentError] = useState('');
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -65,7 +68,9 @@ export default function CheckoutPage() {
     name: '',
     expiry: '',
     cvv: '',
+    cpf: '',
   });
+  const [installments, setInstallments] = useState(1);
 
   // Observações
   const [userNotes, setUserNotes] = useState('');
@@ -185,13 +190,44 @@ export default function CheckoutPage() {
       return;
     }
 
+    const onlineCard =
+      paymentMethod === 'CARD' && cardPaymentType === 'ONLINE';
+
+    if (
+      onlineCard &&
+      (!cardForm.number ||
+        !cardForm.name ||
+        !/^\d{2}\/\d{2,4}$/.test(cardForm.expiry) ||
+        !cardForm.cvv ||
+        cardForm.cpf.replace(/\D/g, '').length !== 11)
+    ) {
+      setPaymentError('Confira os dados do cartão e informe um CPF válido.');
+      return;
+    }
+
     setLoading(true);
+    setPaymentError('');
 
     try {
       // Fetch tenant data
       const tenantData = await apiRequest(`/tenants/${slug}`);
+      let cardPayment:
+        | { cardToken: string; paymentMethodId?: string }
+        | undefined;
 
-      let notesParts: string[] = [];
+      if (onlineCard) {
+        const keyData = await apiRequest(
+          `/payment/public-key/${tenantData.id}`,
+        );
+        if (!keyData.publicKey) {
+          throw new Error(
+            'Pagamento online ainda não foi configurado para esta loja.',
+          );
+        }
+        cardPayment = await tokenizeCard(keyData.publicKey, cardForm);
+      }
+
+      const notesParts: string[] = [];
       if (userNotes.trim()) {
         notesParts.push(userNotes.trim());
       }
@@ -224,11 +260,38 @@ export default function CheckoutPage() {
         })),
       };
 
-      const order = await apiRequest('/orders', {
-        method: 'POST',
-        headers: { 'x-tenant-id': tenantData.id },
-        body: JSON.stringify(orderPayload),
-      });
+      const order = pendingOrderId
+        ? { id: pendingOrderId }
+        : await apiRequest('/orders', {
+            method: 'POST',
+            headers: { 'x-tenant-id': tenantData.id },
+            body: JSON.stringify(orderPayload),
+          });
+
+      if (!pendingOrderId) {
+        setPendingOrderId(order.id);
+      }
+
+      if (paymentMethod === 'PIX') {
+        await apiRequest('/payment/pix', {
+          method: 'POST',
+          headers: { 'x-tenant-id': tenantData.id },
+          body: JSON.stringify({ orderId: order.id }),
+        });
+      } else if (onlineCard && cardPayment) {
+        await apiRequest('/payment/card', {
+          method: 'POST',
+          headers: { 'x-tenant-id': tenantData.id },
+          body: JSON.stringify({
+            orderId: order.id,
+            cardToken: cardPayment.cardToken,
+            paymentMethodId: cardPayment.paymentMethodId,
+            installments,
+            identificationType: 'CPF',
+            identificationNumber: cardForm.cpf,
+          }),
+        });
+      }
 
       // Clear local cart
       clearCart();
@@ -236,7 +299,7 @@ export default function CheckoutPage() {
       // Redirect to dynamic tracking screen
       router.push(`/t/${slug}/orders/${order.id}`);
     } catch (err: any) {
-      alert(err.message || 'Erro ao realizar o pedido.');
+      setPaymentError(err.message || 'Erro ao realizar o pedido.');
     } finally {
       setLoading(false);
     }
@@ -461,7 +524,7 @@ export default function CheckoutPage() {
                 <p className="flex items-center gap-2 text-foreground font-bold">
                   <CheckCircle className="h-4.5 w-4.5 text-primary" /> PIX Copia e Cola / QR Code
                 </p>
-                <p>Ao finalizar, o QR Code de pagamento do PIX será gerado na tela para pagar em até 10 minutos.</p>
+                <p>Ao finalizar, o QR Code de pagamento do PIX será gerado na tela para pagar em até 30 minutos.</p>
               </div>
             )}
 
@@ -495,6 +558,15 @@ export default function CheckoutPage() {
                       placeholder="Número do Cartão"
                       value={cardForm.number}
                       onChange={(e) => setCardForm({ ...cardForm, number: e.target.value })}
+                      autoComplete="cc-number"
+                      className="w-full p-3 rounded-xl bg-background border border-border text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Nome impresso no cartão"
+                      value={cardForm.name}
+                      onChange={(e) => setCardForm({ ...cardForm, name: e.target.value })}
+                      autoComplete="cc-name"
                       className="w-full p-3 rounded-xl bg-background border border-border text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                     <div className="grid grid-cols-2 gap-2">
@@ -503,6 +575,7 @@ export default function CheckoutPage() {
                         placeholder="Validade (MM/AA)"
                         value={cardForm.expiry}
                         onChange={(e) => setCardForm({ ...cardForm, expiry: e.target.value })}
+                        autoComplete="cc-exp"
                         className="p-3 rounded-xl bg-background border border-border text-sm font-semibold focus:outline-none"
                       />
                       <input
@@ -510,9 +583,34 @@ export default function CheckoutPage() {
                         placeholder="CVV"
                         value={cardForm.cvv}
                         onChange={(e) => setCardForm({ ...cardForm, cvv: e.target.value })}
+                        autoComplete="cc-csc"
                         className="p-3 rounded-xl bg-background border border-border text-sm font-semibold focus:outline-none"
                       />
                     </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        placeholder="CPF do titular"
+                        value={cardForm.cpf}
+                        onChange={(e) => setCardForm({ ...cardForm, cpf: e.target.value })}
+                        inputMode="numeric"
+                        className="p-3 rounded-xl bg-background border border-border text-sm font-semibold focus:outline-none"
+                      />
+                      <select
+                        value={installments}
+                        onChange={(e) => setInstallments(Number(e.target.value))}
+                        className="p-3 rounded-xl bg-background border border-border text-sm font-semibold focus:outline-none"
+                      >
+                        {[1, 2, 3, 4, 5, 6].map((count) => (
+                          <option key={count} value={count}>
+                            {count}x de R$ {(total / count).toFixed(2)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Os dados do cartão são enviados diretamente ao Mercado Pago e não ficam salvos na loja.
+                    </p>
                   </div>
                 ) : (
                   <div className="bg-muted p-4 rounded-xl space-y-2 text-xs text-muted-foreground font-semibold">
@@ -554,6 +652,12 @@ export default function CheckoutPage() {
               onChange={(e) => setUserNotes(e.target.value)}
               className="w-full p-3 rounded-xl bg-background border border-border text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary h-20 resize-none"
             />
+          </div>
+        )}
+
+        {paymentError && (
+          <div className="border border-red-500/30 bg-red-500/10 p-4 text-sm font-semibold text-red-600 rounded-xl">
+            {paymentError}
           </div>
         )}
 

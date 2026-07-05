@@ -9,5 +9,8 @@
 			"Path": "C:\\Program Files\\nodejs;C:\\Program Files\\Docker\\Docker\\resources\\bin;${env:Path}"
 		},
 		"typescript.tsdk": "frontend/node_modules/typescript/lib"
+	},
+	"extensions": {
+		"recommendations": []
 	}
 }

@@ -9,7 +9,17 @@ export class TenantService {
     const tenant = await this.prisma.tenant.findUnique({
       where: { slug },
       include: {
-        configs: true,
+        configs: {
+          select: {
+            operatingHours: true,
+            whatsappNumber: true,
+            deliveryMinTime: true,
+            deliveryMaxTime: true,
+            paymentSettings: true,
+            cashbackPercent: true,
+            mpPublicKey: true,
+          },
+        },
         deliveryAreas: true,
       },
     });
@@ -24,6 +34,17 @@ export class TenantService {
   async getConfigs(tenantId: string) {
     return this.prisma.tenantConfig.findUnique({
       where: { tenantId },
+      select: {
+        id: true,
+        tenantId: true,
+        operatingHours: true,
+        whatsappNumber: true,
+        deliveryMinTime: true,
+        deliveryMaxTime: true,
+        paymentSettings: true,
+        cashbackPercent: true,
+        mpPublicKey: true,
+      },
     });
   }
 

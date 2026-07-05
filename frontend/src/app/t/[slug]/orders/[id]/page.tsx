@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
 import { apiRequest, API_BASE } from '@/lib/api';
 import { useSocketStore } from '@/store/socketStore';
@@ -26,6 +27,10 @@ interface Order {
   deliveryType: 'DELIVERY' | 'PICKUP' | 'IN_STORE';
   paymentMethod: 'PIX' | 'CARD' | 'CASH';
   paymentStatus: 'PENDING' | 'PAID' | 'FAILED';
+  mpPaymentStatus?: string;
+  pixQrCode?: string;
+  pixQrCodeBase64?: string;
+  paymentExpiresAt?: string;
   deliveryFee: number;
   subtotal: number;
   discount: number;
@@ -75,12 +80,34 @@ export default function OrderTracking() {
     if (socket && order) {
       joinOrderRoom(order.id);
 
-      socket.on('statusChanged', (data: { status: any; order: any }) => {
+      const handleStatusChanged = (data: { status: any; order: any }) => {
         console.log('Socket update received:', data);
         setOrder(data.order);
-      });
+      };
+      socket.on('statusChanged', handleStatusChanged);
+
+      return () => {
+        socket.off('statusChanged', handleStatusChanged);
+      };
     }
   }, [socket, order, joinOrderRoom]);
+
+  useEffect(() => {
+    if (!id || order?.paymentStatus !== 'PENDING') {
+      return;
+    }
+
+    const interval = window.setInterval(async () => {
+      try {
+        const data = await apiRequest(`/orders/${id}`);
+        setOrder(data);
+      } catch {
+        // Socket remains the primary update channel; polling is a fallback.
+      }
+    }, 10000);
+
+    return () => window.clearInterval(interval);
+  }, [id, order?.paymentStatus]);
 
   if (loading) {
     return (
@@ -121,10 +148,17 @@ export default function OrderTracking() {
   const currentStepIndex = getCurrentStepIndex();
 
   const handleCopyPix = () => {
-    navigator.clipboard.writeText('00020126360014BR.GOV.BCB.PIX0114+55119999999995204000053039865802BR5915MeninoTravesso6009SaoPaulo62070503***6304ABCD');
+    if (!order.pixQrCode) return;
+    navigator.clipboard.writeText(order.pixQrCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const qrCodeImage = order.pixQrCodeBase64
+    ? order.pixQrCodeBase64.startsWith('data:')
+      ? order.pixQrCodeBase64
+      : `data:image/png;base64,${order.pixQrCodeBase64}`
+    : null;
 
   return (
     <div className="relative min-h-screen bg-background text-foreground pb-24">
@@ -208,20 +242,39 @@ export default function OrderTracking() {
         )}
 
         {/* 4. PIX Payment code (If PENDING) */}
-        {order.paymentMethod === 'PIX' && order.paymentStatus === 'PENDING' && (
+        {order.paymentStatus === 'PAID' && (
+          <div className="bg-green-500/10 border border-green-500/30 p-4 rounded-xl text-sm font-bold text-green-600 flex items-center justify-center gap-2">
+            <CheckCircle className="h-5 w-5" /> Pagamento aprovado
+          </div>
+        )}
+
+        {order.paymentStatus === 'FAILED' && (
+          <div className="bg-red-500/10 border border-red-500/30 p-4 rounded-xl text-sm font-bold text-red-600 flex items-center justify-center gap-2">
+            <AlertCircle className="h-5 w-5" /> Pagamento não aprovado. Entre em contato com a loja.
+          </div>
+        )}
+
+        {order.paymentMethod === 'PIX' && order.paymentStatus === 'PENDING' && order.pixQrCode && (
           <div className="bg-card rounded-2xl border border-border p-5 space-y-4 shadow-sm text-center">
             <div className="flex justify-center items-center gap-2 text-primary font-bold text-sm">
               <Landmark className="h-5 w-5" /> Pagamento Pendente
             </div>
             
-            {/* Generated Mock QR Code */}
-            <div className="h-40 w-40 bg-white p-2 rounded-xl border border-border mx-auto flex items-center justify-center">
-              {/* Premium visual mock QR code */}
-              <div className="h-full w-full bg-[repeating-conic-gradient(#000_0_25%,#fff_0_50%)] [background-size:12px_12px] opacity-90 rounded"></div>
-            </div>
+            {qrCodeImage && (
+              <div className="h-44 w-44 bg-white p-2 rounded-xl border border-border mx-auto">
+                <Image
+                  src={qrCodeImage}
+                  alt="QR Code PIX do pedido"
+                  width={160}
+                  height={160}
+                  unoptimized
+                  className="h-full w-full object-contain"
+                />
+              </div>
+            )}
 
             <p className="text-xs text-muted-foreground font-semibold px-4">
-              Copie o código PIX abaixo para pagar no aplicativo do seu banco em até 10 minutos. O pedido será confirmado na hora.
+              Escaneie o QR Code ou copie o código PIX abaixo. A confirmação aparece automaticamente após o pagamento.
             </p>
 
             <button

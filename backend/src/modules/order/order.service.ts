@@ -20,7 +20,7 @@ export class OrderService {
     const customer = await this.prisma.customer.findUnique({
       where: { id: dto.customerId },
     });
-    if (!customer) {
+    if (!customer || customer.tenantId !== tenantId) {
       throw new NotFoundException('Cliente não encontrado.');
     }
 
@@ -31,9 +31,22 @@ export class OrderService {
     for (const itemDto of dto.items) {
       const product = await this.prisma.product.findUnique({
         where: { id: itemDto.productId },
+        include: {
+          optionGroups: {
+            include: { options: true },
+          },
+        },
       });
-      if (!product || !product.isAvailable) {
+      if (
+        !product ||
+        product.tenantId !== tenantId ||
+        !product.isAvailable ||
+        product.stock === 0
+      ) {
         throw new BadRequestException(`Produto ${itemDto.productId} indisponível.`);
+      }
+      if (!Number.isInteger(itemDto.quantity) || itemDto.quantity < 1) {
+        throw new BadRequestException('Quantidade de produto inválida.');
       }
 
       let itemPrice = product.price;
@@ -43,10 +56,48 @@ export class OrderService {
 
       // Sum options prices
       let optionsPrice = 0;
-      if (itemDto.options) {
-        for (const opt of itemDto.options) {
-          optionsPrice += opt.price;
+      const verifiedOptions = [];
+      for (const group of product.optionGroups) {
+        const selected = (itemDto.options || []).filter(
+          (option) => option.groupName === group.name,
+        );
+        if (
+          selected.length < group.minSelect ||
+          selected.length > group.maxSelect
+        ) {
+          throw new BadRequestException(
+            `Seleção inválida no grupo ${group.name}.`,
+          );
         }
+
+        for (const selectedOption of selected) {
+          const databaseOption = group.options.find(
+            (option) =>
+              option.name === selectedOption.optionName && option.isAvailable,
+          );
+          if (!databaseOption) {
+            throw new BadRequestException(
+              `Opção ${selectedOption.optionName} indisponível.`,
+            );
+          }
+          optionsPrice += databaseOption.price;
+          verifiedOptions.push({
+            groupName: group.name,
+            optionName: databaseOption.name,
+            price: databaseOption.price,
+          });
+        }
+      }
+
+      const knownGroupNames = new Set(
+        product.optionGroups.map((group) => group.name),
+      );
+      if (
+        (itemDto.options || []).some(
+          (option) => !knownGroupNames.has(option.groupName),
+        )
+      ) {
+        throw new BadRequestException('Grupo de opção inválido.');
       }
 
       const totalItemUnit = itemPrice + optionsPrice;
@@ -56,7 +107,7 @@ export class OrderService {
         productId: product.id,
         quantity: itemDto.quantity,
         price: totalItemUnit,
-        options: itemDto.options || [],
+        options: verifiedOptions,
       });
     }
 
@@ -239,7 +290,12 @@ export class OrderService {
       where: { id },
       data: {
         status,
-        paymentStatus: status === OrderStatus.DELIVERED || status === OrderStatus.COMPLETED ? PaymentStatus.PAID : undefined,
+        paymentStatus:
+          (status === OrderStatus.DELIVERED ||
+            status === OrderStatus.COMPLETED) &&
+          this.isOfflinePayment(currentOrder)
+            ? PaymentStatus.PAID
+            : undefined,
       },
       include: {
         items: {
@@ -259,6 +315,17 @@ export class OrderService {
     await this.queueService.dispatchWhatsApp(updated.customer.phone, whatsappMsg);
 
     return updated;
+  }
+
+  private isOfflinePayment(order: {
+    paymentMethod: string;
+    notes: string | null;
+  }) {
+    return (
+      order.paymentMethod === 'CASH' ||
+      (order.paymentMethod === 'CARD' &&
+        order.notes?.includes('[PAGAMENTO: Cartão na') === true)
+    );
   }
 
   // Statistics for Dashboard Charts & Numbers

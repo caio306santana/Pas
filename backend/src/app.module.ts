@@ -6,6 +6,7 @@ import { MenuModule } from './modules/menu/menu.module';
 import { OrderModule } from './modules/order/order.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { QueueModule } from './modules/queue/queue.module';
+import { PaymentModule } from './modules/payment/payment.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { QueueModule } from './modules/queue/queue.module';
     OrderModule,
     RealtimeModule,
     QueueModule,
+    PaymentModule,
   ],
   providers: [PrismaService],
   exports: [PrismaService],

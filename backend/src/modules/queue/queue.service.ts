@@ -72,9 +72,21 @@ export class QueueService {
           await new Promise((res) => setTimeout(res, 12000));
 
           try {
+            const currentOrder = await this.prisma.order.findUnique({
+              where: { id: orderId },
+              select: { paymentMethod: true, notes: true },
+            });
             const order = await this.prisma.order.update({
               where: { id: orderId },
-              data: { status: status as any, paymentStatus: status === 'DELIVERED' ? 'PAID' : undefined },
+              data: {
+                status: status as any,
+                paymentStatus:
+                  status === 'DELIVERED' &&
+                  currentOrder &&
+                  this.isOfflinePayment(currentOrder)
+                    ? 'PAID'
+                    : undefined,
+              },
               include: { customer: true, items: { include: { product: true } } },
             });
 
@@ -120,9 +132,21 @@ export class QueueService {
     for (const status of statuses) {
       await new Promise((res) => setTimeout(res, 10000));
       try {
+        const currentOrder = await this.prisma.order.findUnique({
+          where: { id: orderId },
+          select: { paymentMethod: true, notes: true },
+        });
         const order = await this.prisma.order.update({
           where: { id: orderId },
-          data: { status: status as any, paymentStatus: status === 'DELIVERED' ? 'PAID' : undefined },
+          data: {
+            status: status as any,
+            paymentStatus:
+              status === 'DELIVERED' &&
+              currentOrder &&
+              this.isOfflinePayment(currentOrder)
+                ? 'PAID'
+                : undefined,
+          },
           include: { customer: true, items: { include: { product: true } } },
         });
         this.realtimeGateway.notifyOrderStatusChanged(tenantId, orderId, status, order);
@@ -130,5 +154,16 @@ export class QueueService {
         break;
       }
     }
+  }
+
+  private isOfflinePayment(order: {
+    paymentMethod: string;
+    notes: string | null;
+  }) {
+    return (
+      order.paymentMethod === 'CASH' ||
+      (order.paymentMethod === 'CARD' &&
+        order.notes?.includes('[PAGAMENTO: Cartão na') === true)
+    );
   }
 }

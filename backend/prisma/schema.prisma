@@ -28,15 +28,18 @@ model Tenant {
 }
 
 model TenantConfig {
-  id              String  @id @default(uuid())
-  tenantId        String  @unique
-  operatingHours  Json
-  whatsappNumber  String?
-  deliveryMinTime Int     @default(30)
-  deliveryMaxTime Int     @default(60)
-  paymentSettings Json
-  cashbackPercent Float   @default(0.0)
-  tenant          Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id                   String  @id @default(uuid())
+  tenantId             String  @unique
+  operatingHours       Json
+  whatsappNumber       String?
+  deliveryMinTime      Int     @default(30)
+  deliveryMaxTime      Int     @default(60)
+  paymentSettings      Json
+  cashbackPercent      Float   @default(0.0)
+  mpPublicKey          String? // Mercado Pago Public Key
+  mpAccessToken        String? // Mercado Pago Access Token
+  mpWebhookSecret      String? // Mercado Pago webhook signature secret
+  tenant               Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 
 model User {
@@ -153,6 +156,11 @@ model Order {
   total                       Float
   changeFor                   Float?
   notes                       String?
+  mpPaymentId                 String? @unique // Mercado Pago payment ID
+  mpPaymentStatus             String? // Mercado Pago payment status
+  pixQrCode                   String?
+  pixQrCodeBase64             String?
+  paymentExpiresAt            DateTime?
   customerId                  String
   tenantId                    String
   deliveryAddressStreet       String?
