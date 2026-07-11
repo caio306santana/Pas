@@ -2,8 +2,8 @@ import './globals.css';
 import React from 'react';
 
 export const metadata = {
-  title: 'Menino Travesso | Delivery de Pastéis e Churros',
-  description: 'O melhor delivery de pastéis gourmet, churros e bebidas em tempo real!',
+  title: 'Menino Travesso | Delivery de Pasteis e Churros',
+  description: 'Delivery de pasteis, churros e bebidas com acompanhamento em tempo real.',
 };
 
 export default function RootLayout({

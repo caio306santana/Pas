@@ -2,7 +2,7 @@ import { Controller, Post, Get, Put, Body, Param, Headers, BadRequestException }
 import { OrderService } from './order.service';
 import { CreateOrderDto } from './order.dto';
 import { OrderStatus } from '@prisma/client';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 @ApiTags('Orders')
 @Controller('orders')
@@ -10,7 +10,15 @@ export class OrderController {
   constructor(private readonly orderService: OrderService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Submit a new order from checkout' })
+  @ApiOperation({
+    summary: 'Criar pedido',
+    description: 'Recebe o carrinho do checkout e cria um pedido para a loja informada.',
+  })
+  @ApiHeader({
+    name: 'x-tenant-id',
+    description: 'ID da loja que recebera o pedido.',
+    required: true,
+  })
   async createOrder(
     @Headers('x-tenant-id') tenantId: string,
     @Body() dto: CreateOrderDto,
@@ -22,7 +30,15 @@ export class OrderController {
   }
 
   @Get('active')
-  @ApiOperation({ summary: 'Get all active orders for the dashboard (Admin/Kitchen)' })
+  @ApiOperation({
+    summary: 'Listar pedidos ativos',
+    description: 'Retorna pedidos em aberto para painel administrativo e cozinha.',
+  })
+  @ApiHeader({
+    name: 'x-tenant-id',
+    description: 'ID da loja consultada.',
+    required: true,
+  })
   async getActiveOrders(@Headers('x-tenant-id') tenantId: string) {
     if (!tenantId) {
       throw new BadRequestException('x-tenant-id header is missing.');
@@ -31,13 +47,24 @@ export class OrderController {
   }
 
   @Get('customer/:customerId')
-  @ApiOperation({ summary: 'Get order history for a client' })
+  @ApiOperation({
+    summary: 'Historico do cliente',
+    description: 'Lista pedidos anteriores de um cliente especifico.',
+  })
   async getCustomerHistory(@Param('customerId') customerId: string) {
     return this.orderService.getCustomerHistory(customerId);
   }
 
   @Get('dashboard/stats')
-  @ApiOperation({ summary: 'Get metrics and statistics for dashboard analytics' })
+  @ApiOperation({
+    summary: 'Metricas do dashboard',
+    description: 'Retorna totais e indicadores para o painel da loja.',
+  })
+  @ApiHeader({
+    name: 'x-tenant-id',
+    description: 'ID da loja consultada.',
+    required: true,
+  })
   async getDashboardStats(@Headers('x-tenant-id') tenantId: string) {
     if (!tenantId) {
       throw new BadRequestException('x-tenant-id header is missing.');
@@ -46,13 +73,19 @@ export class OrderController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get details of a single order by ID' })
+  @ApiOperation({
+    summary: 'Detalhar pedido',
+    description: 'Retorna dados completos de um pedido para acompanhamento.',
+  })
   async getOrderById(@Param('id') id: string) {
     return this.orderService.getOrderById(id);
   }
 
   @Put(':id/status')
-  @ApiOperation({ summary: 'Update status of an order (Admin/Kitchen)' })
+  @ApiOperation({
+    summary: 'Atualizar status do pedido',
+    description: 'Muda o status operacional usado pelo painel e tela de acompanhamento.',
+  })
   async updateStatus(
     @Param('id') id: string,
     @Body('status') status: OrderStatus,

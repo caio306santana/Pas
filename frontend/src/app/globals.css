@@ -3,27 +3,27 @@
 @tailwind utilities;
 
 :root {
-  --background: #F9FAFB;
-  --foreground: #111827;
-  --primary: #E58A14;
+  --background: #FAFAF8;
+  --foreground: #1D1B16;
+  --primary: #D46A16;
   --primary-foreground: #FFFFFF;
   --card: #FFFFFF;
-  --card-foreground: #111827;
-  --muted: #F3F4F6;
-  --muted-foreground: #6B7280;
-  --border: #E5E7EB;
+  --card-foreground: #1D1B16;
+  --muted: #F1EFEA;
+  --muted-foreground: #716B61;
+  --border: #E7E1D8;
 }
 
 .dark {
-  --background: #0A0A0C;
-  --foreground: #F3F4F6;
-  --primary: #F59E0B;
+  --background: #10100E;
+  --foreground: #F4F1EA;
+  --primary: #F28A2E;
   --primary-foreground: #FFFFFF;
-  --card: #121217;
-  --card-foreground: #F3F4F6;
-  --muted: #1F1F24;
-  --muted-foreground: #9CA3AF;
-  --border: #24242B;
+  --card: #181713;
+  --card-foreground: #F4F1EA;
+  --muted: #232018;
+  --muted-foreground: #B8B0A3;
+  --border: #312D24;
 }
 
 body {
@@ -31,6 +31,46 @@ body {
   color: var(--foreground);
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   transition: background-color 0.3s ease, color 0.3s ease;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--primary) 22%, transparent);
+}
+
+button,
+input,
+select,
+textarea {
+  letter-spacing: 0;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.rounded-2xl,
+.rounded-xl {
+  border-radius: 0.5rem;
+}
+
+.shadow-xl,
+.shadow-2xl,
+.shadow-lg,
+.shadow-md {
+  box-shadow: 0 10px 30px rgba(29, 27, 22, 0.08);
+}
+
+.dark .shadow-xl,
+.dark .shadow-2xl,
+.dark .shadow-lg,
+.dark .shadow-md {
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
 }
 
 /* Custom scrollbars */

@@ -1,13 +1,23 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
-import { apiRequest, API_BASE } from '@/lib/api';
+import { API_BASE, apiRequest } from '@/lib/api';
 import { useSocketStore } from '@/store/socketStore';
-import { 
-  ChevronLeft, Clock, MapPin, Receipt, CheckCircle, 
-  Bike, Check, AlertCircle, MessageCircle, HelpCircle, Landmark 
+import {
+  AlertCircle,
+  Bike,
+  Check,
+  CheckCircle,
+  ChevronLeft,
+  Clock,
+  Copy,
+  Landmark,
+  MapPin,
+  MessageCircle,
+  Receipt,
+  Store,
 } from 'lucide-react';
 
 interface OrderItem {
@@ -44,6 +54,15 @@ interface Order {
   items: OrderItem[];
 }
 
+const steps = [
+  { label: 'Recebido', status: 'RECEIVED', desc: 'Seu pedido chegou na loja.' },
+  { label: 'Confirmado', status: 'CONFIRMED', desc: 'A equipe confirmou o preparo.' },
+  { label: 'Em preparo', status: 'PREPARING', desc: 'Seu pedido esta sendo feito.' },
+  { label: 'Pronto', status: 'READY', desc: 'Pedido pronto para sair ou retirar.' },
+  { label: 'Em rota', status: 'DISPATCHED', desc: 'O entregador saiu para entrega.' },
+  { label: 'Entregue', status: 'DELIVERED', desc: 'Pedido finalizado. Bom apetite!' },
+] as const;
+
 export default function OrderTracking() {
   const { slug, id } = useParams();
   const router = useRouter();
@@ -59,8 +78,6 @@ export default function OrderTracking() {
       try {
         const data = await apiRequest(`/orders/${id}`);
         setOrder(data);
-
-        // Start Socket.IO
         connect(API_BASE);
       } catch (err) {
         console.error('Error fetching order:', err);
@@ -68,28 +85,32 @@ export default function OrderTracking() {
         setLoading(false);
       }
     }
-    if (id) loadOrder();
+
+    if (id) {
+      loadOrder();
+    }
 
     return () => {
       disconnect();
     };
   }, [id, connect, disconnect]);
 
-  // Join Socket Room once connected
   useEffect(() => {
-    if (socket && order) {
-      joinOrderRoom(order.id);
-
-      const handleStatusChanged = (data: { status: any; order: any }) => {
-        console.log('Socket update received:', data);
-        setOrder(data.order);
-      };
-      socket.on('statusChanged', handleStatusChanged);
-
-      return () => {
-        socket.off('statusChanged', handleStatusChanged);
-      };
+    if (!socket || !order) {
+      return;
     }
+
+    joinOrderRoom(order.id);
+
+    const handleStatusChanged = (data: { status: any; order: any }) => {
+      setOrder(data.order);
+    };
+
+    socket.on('statusChanged', handleStatusChanged);
+
+    return () => {
+      socket.off('statusChanged', handleStatusChanged);
+    };
   }, [socket, order, joinOrderRoom]);
 
   useEffect(() => {
@@ -102,19 +123,43 @@ export default function OrderTracking() {
         const data = await apiRequest(`/orders/${id}`);
         setOrder(data);
       } catch {
-        // Socket remains the primary update channel; polling is a fallback.
+        // Socket is the primary update channel; polling is only a fallback.
       }
     }, 10000);
 
     return () => window.clearInterval(interval);
   }, [id, order?.paymentStatus]);
 
+  const currentStepIndex = useMemo(() => {
+    if (!order || order.status === 'CANCELLED') {
+      return -1;
+    }
+
+    return steps.findIndex((step) => step.status === order.status);
+  }, [order]);
+
+  const qrCodeImage = order?.pixQrCodeBase64
+    ? order.pixQrCodeBase64.startsWith('data:')
+      ? order.pixQrCodeBase64
+      : `data:image/png;base64,${order.pixQrCodeBase64}`
+    : null;
+
+  const handleCopyPix = () => {
+    if (!order?.pixQrCode) {
+      return;
+    }
+
+    navigator.clipboard.writeText(order.pixQrCode);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2000);
+  };
+
   if (loading) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-background text-foreground">
         <div className="text-center space-y-4">
-          <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto"></div>
-          <p className="text-lg font-medium text-muted-foreground animate-pulse">Carregando rastreamento em tempo real...</p>
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
+          <p className="text-sm font-semibold text-muted-foreground">Carregando pedido...</p>
         </div>
       </div>
     );
@@ -123,145 +168,76 @@ export default function OrderTracking() {
   if (!order) {
     return (
       <div className="flex h-screen w-screen flex-col items-center justify-center bg-background text-foreground text-center p-6">
-        <h1 className="text-3xl font-extrabold text-primary">Pedido não encontrado</h1>
-        <button onClick={() => router.push(`/t/${slug}`)} className="mt-4 bg-primary text-primary-foreground px-6 py-2 rounded-full font-semibold">
-          Voltar ao Cardápio
+        <h1 className="text-2xl font-black text-primary">Pedido nao encontrado</h1>
+        <button
+          onClick={() => router.push(`/t/${slug}`)}
+          className="mt-5 rounded-lg bg-primary px-5 py-2.5 text-sm font-black text-primary-foreground"
+        >
+          Voltar ao cardapio
         </button>
       </div>
     );
   }
 
-  const steps = [
-    { label: 'Recebido', status: 'RECEIVED', desc: 'Aguardando confirmação do caixa' },
-    { label: 'Confirmado', status: 'CONFIRMED', desc: 'Pedido aceito e agendado' },
-    { label: 'Em Preparo', status: 'PREPARING', desc: 'Seus pastéis estão fritando!' },
-    { label: 'Pronto', status: 'READY', desc: 'Saindo quentinho da cozinha' },
-    { label: 'Em Rota', status: 'DISPATCHED', desc: 'Entregador à caminho' },
-    { label: 'Entregue', status: 'DELIVERED', desc: 'Bom apetite!' },
-  ];
-
-  const getCurrentStepIndex = () => {
-    if (order.status === 'CANCELLED') return -1;
-    return steps.findIndex((step) => step.status === order.status);
-  };
-
-  const currentStepIndex = getCurrentStepIndex();
-
-  const handleCopyPix = () => {
-    if (!order.pixQrCode) return;
-    navigator.clipboard.writeText(order.pixQrCode);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const qrCodeImage = order.pixQrCodeBase64
-    ? order.pixQrCodeBase64.startsWith('data:')
-      ? order.pixQrCodeBase64
-      : `data:image/png;base64,${order.pixQrCodeBase64}`
-    : null;
+  const currentStep = steps[currentStepIndex];
 
   return (
-    <div className="relative min-h-screen bg-background text-foreground pb-24">
-      
-      {/* 1. Header */}
-      <div className="fixed top-0 left-0 right-0 z-30 bg-card border-b border-border py-4 px-4 flex items-center justify-between shadow-sm">
-        <button onClick={() => router.push(`/t/${slug}`)} className="p-2 rounded-full hover:bg-muted transition-colors">
-          <ChevronLeft className="h-6 w-6" />
-        </button>
-        <span className="font-extrabold text-base">Acompanhar Pedido #{order.orderNumber}</span>
-        <div className="w-10"></div>
-      </div>
-
-      <div className="max-w-xl mx-auto px-4 pt-22 space-y-6 animate-fade-in">
-        
-        {/* 2. Banner Status Summary */}
-        <div className="bg-card rounded-2xl border border-border p-6 shadow-sm flex items-center gap-4">
-          <div className="h-12 w-12 bg-primary/10 rounded-full flex items-center justify-center text-primary shrink-0 animate-pulse">
-            <Clock className="h-6 w-6" />
-          </div>
-          <div className="flex-1 space-y-1">
-            <h2 className="font-extrabold text-lg">
-              {order.status === 'CANCELLED' ? 'Pedido Cancelado' : steps[currentStepIndex]?.label}
-            </h2>
-            <p className="text-xs text-muted-foreground font-semibold">
-              {order.status === 'CANCELLED' ? 'Infelizmente o pedido foi recusado pelo trailer.' : steps[currentStepIndex]?.desc}
-            </p>
-          </div>
+    <main className="min-h-screen bg-background pb-10 text-foreground">
+      <header className="sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur">
+        <div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-4">
+          <button onClick={() => router.push(`/t/${slug}`)} className="rounded-lg p-2 transition hover:bg-muted" title="Voltar">
+            <ChevronLeft className="h-6 w-6" />
+          </button>
+          <span className="text-sm font-black">Pedido #{order.orderNumber}</span>
+          <div className="w-10" />
         </div>
+      </header>
 
-        {/* 3. Realtime Map / Motorbike Animation (Shown when DISPATCHED) */}
-        {order.status === 'DISPATCHED' && (
-          <div className="bg-card rounded-2xl border border-border p-5 overflow-hidden relative shadow-md">
-            <div className="flex justify-between items-center mb-3">
-              <span className="text-xs font-bold text-primary flex items-center gap-1">
-                <Bike className="h-4 w-4 animate-bounce" /> MotoBoy em Trânsito
-              </span>
-              <span className="text-[10px] bg-primary/10 text-primary font-bold px-2 py-0.5 rounded">Rastreamento Live</span>
+      <div className="mx-auto max-w-3xl px-4 py-6 space-y-4">
+        <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
+          <div className="flex items-start gap-4">
+            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+              {order.status === 'DISPATCHED' ? <Bike className="h-6 w-6" /> : <Clock className="h-6 w-6" />}
             </div>
-            
-            {/* Mock Map View with nice street paths and animating motorbike */}
-            <div className="h-32 bg-slate-950 rounded-xl relative border border-border overflow-hidden">
-              {/* Premium futuristic dark map grid representation */}
-              <div className="absolute inset-0 opacity-15 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:16px_16px]"></div>
-              
-              {/* Street Line */}
-              <div className="absolute left-0 right-0 top-1/2 h-1 bg-primary/40 -translate-y-1/2"></div>
-              <div className="absolute left-0 right-0 top-1/2 h-0.5 bg-primary -translate-y-1/2"></div>
-              
-              {/* Shop Node */}
-              <div className="absolute left-6 top-1/2 -translate-y-1/2 flex flex-col items-center">
-                <div className="h-6 w-6 rounded-full bg-slate-900 border-2 border-primary flex items-center justify-center text-[10px] text-primary font-bold shadow-lg z-10">
-                  🏠
-                </div>
-                <span className="text-[8px] text-muted-foreground font-extrabold mt-1">Trailer</span>
-              </div>
-
-              {/* Home Node */}
-              <div className="absolute right-6 top-1/2 -translate-y-1/2 flex flex-col items-center">
-                <div className="h-6 w-6 rounded-full bg-slate-900 border-2 border-green-500 flex items-center justify-center text-[10px] text-green-500 font-bold shadow-lg z-10">
-                  📍
-                </div>
-                <span className="text-[8px] text-muted-foreground font-extrabold mt-1">Você</span>
-              </div>
-
-              {/* Moving Bike Icon */}
-              <div className="absolute top-1/2 -translate-y-1/2 flex items-center justify-center z-20 animate-[bikeDrive_8s_infinite_linear]" style={{ left: '0%' }}>
-                <div className="bg-primary p-1.5 rounded-full shadow-lg border border-primary/20 text-white">
-                  <Bike className="h-4 w-4" />
-                </div>
-              </div>
-
-              <style>{`
-                @keyframes bikeDrive {
-                  0% { left: 15%; }
-                  100% { left: 80%; }
-                }
-              `}</style>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-black uppercase text-muted-foreground">
+                {order.status === 'CANCELLED' ? 'Pedido cancelado' : 'Acompanhamento em tempo real'}
+              </p>
+              <h1 className="mt-1 text-2xl font-black">
+                {order.status === 'CANCELLED' ? 'Pedido cancelado' : currentStep?.label}
+              </h1>
+              <p className="mt-1 text-sm font-medium text-muted-foreground">
+                {order.status === 'CANCELLED'
+                  ? 'A loja cancelou este pedido. Entre em contato para mais detalhes.'
+                  : currentStep?.desc}
+              </p>
             </div>
           </div>
-        )}
+        </section>
 
-        {/* 4. PIX Payment code (If PENDING) */}
         {order.paymentStatus === 'PAID' && (
-          <div className="bg-green-500/10 border border-green-500/30 p-4 rounded-xl text-sm font-bold text-green-600 flex items-center justify-center gap-2">
-            <CheckCircle className="h-5 w-5" /> Pagamento aprovado
+          <div className="flex items-center justify-center gap-2 rounded-lg border border-green-500/30 bg-green-500/10 p-4 text-sm font-black text-green-700 dark:text-green-300">
+            <CheckCircle className="h-5 w-5" />
+            Pagamento aprovado
           </div>
         )}
 
         {order.paymentStatus === 'FAILED' && (
-          <div className="bg-red-500/10 border border-red-500/30 p-4 rounded-xl text-sm font-bold text-red-600 flex items-center justify-center gap-2">
-            <AlertCircle className="h-5 w-5" /> Pagamento não aprovado. Entre em contato com a loja.
+          <div className="flex items-center justify-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm font-black text-red-600">
+            <AlertCircle className="h-5 w-5" />
+            Pagamento nao aprovado. Fale com a loja.
           </div>
         )}
 
         {order.paymentMethod === 'PIX' && order.paymentStatus === 'PENDING' && order.pixQrCode && (
-          <div className="bg-card rounded-2xl border border-border p-5 space-y-4 shadow-sm text-center">
-            <div className="flex justify-center items-center gap-2 text-primary font-bold text-sm">
-              <Landmark className="h-5 w-5" /> Pagamento Pendente
+          <section className="rounded-lg border border-border bg-card p-5 text-center shadow-sm">
+            <div className="mb-4 flex items-center justify-center gap-2 text-sm font-black text-primary">
+              <Landmark className="h-5 w-5" />
+              PIX aguardando pagamento
             </div>
-            
+
             {qrCodeImage && (
-              <div className="h-44 w-44 bg-white p-2 rounded-xl border border-border mx-auto">
+              <div className="mx-auto grid h-44 w-44 place-items-center rounded-lg border border-border bg-white p-2">
                 <Image
                   src={qrCodeImage}
                   alt="QR Code PIX do pedido"
@@ -273,148 +249,174 @@ export default function OrderTracking() {
               </div>
             )}
 
-            <p className="text-xs text-muted-foreground font-semibold px-4">
-              Escaneie o QR Code ou copie o código PIX abaixo. A confirmação aparece automaticamente após o pagamento.
+            <p className="mx-auto mt-4 max-w-md text-xs font-semibold leading-5 text-muted-foreground">
+              Escaneie o QR Code ou copie o codigo PIX. A tela atualiza automaticamente quando o pagamento for confirmado.
             </p>
 
             <button
               onClick={handleCopyPix}
-              className="w-full bg-muted border border-border hover:bg-muted/80 text-foreground font-bold py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-all"
+              className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-border bg-muted px-4 text-sm font-black transition hover:bg-muted/80"
             >
-              {copied ? (
-                <>
-                  <Check className="h-4 w-4 text-green-500" /> Copiado!
-                </>
-              ) : (
-                'Copiar código PIX Copia e Cola'
-              )}
+              {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+              {copied ? 'Copiado' : 'Copiar codigo PIX'}
             </button>
-          </div>
+          </section>
         )}
 
-        {/* 5. Animated Visual Timeline */}
-        {order.status !== 'CANCELLED' && (
-          <div className="bg-card rounded-2xl border border-border p-6 shadow-sm">
-            <h3 className="font-extrabold text-sm uppercase tracking-wider text-muted-foreground mb-6">Status do Pedido</h3>
-            
-            <div className="relative pl-6 border-l border-border space-y-8">
-              {steps.map((step, idx) => {
-                const isCompleted = idx < currentStepIndex;
-                const isCurrent = idx === currentStepIndex;
-                
-                return (
-                  <div key={idx} className="relative">
-                    {/* Glowing Node indicator */}
-                    <div className={`absolute -left-[31px] top-0 h-[18px] w-[18px] rounded-full border-2 flex items-center justify-center z-10 transition-all ${
-                      isCompleted 
-                        ? 'bg-primary border-primary text-white scale-105' 
-                        : isCurrent 
-                        ? 'bg-background border-primary text-primary scale-110 ring-4 ring-primary/10 animate-pulse'
-                        : 'bg-background border-border text-muted-foreground'
-                    }`}>
-                      {isCompleted && <Check className="h-2.5 w-2.5 stroke-[4]" />}
-                    </div>
+        {order.status === 'DISPATCHED' && (
+          <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
+            <div className="mb-3 flex items-center justify-between">
+              <span className="flex items-center gap-2 text-sm font-black text-primary">
+                <Bike className="h-5 w-5" />
+                Entrega em rota
+              </span>
+              <span className="rounded-full bg-primary/10 px-2 py-1 text-[10px] font-black text-primary">Ao vivo</span>
+            </div>
+            <div className="relative h-28 overflow-hidden rounded-lg border border-border bg-[#151512]">
+              <div className="absolute left-8 right-8 top-1/2 h-1 -translate-y-1/2 rounded-full bg-primary/25" />
+              <div className="absolute left-8 top-1/2 grid -translate-y-1/2 place-items-center">
+                <div className="grid h-8 w-8 place-items-center rounded-lg border border-primary bg-card text-primary">
+                  <Store className="h-4 w-4" />
+                </div>
+                <span className="mt-1 text-[10px] font-black text-white/70">Loja</span>
+              </div>
+              <div className="absolute right-8 top-1/2 grid -translate-y-1/2 place-items-center">
+                <div className="grid h-8 w-8 place-items-center rounded-lg border border-green-500 bg-card text-green-500">
+                  <MapPin className="h-4 w-4" />
+                </div>
+                <span className="mt-1 text-[10px] font-black text-white/70">Voce</span>
+              </div>
+              <div className="absolute top-1/2 z-10 -translate-y-1/2 animate-[bikeDrive_8s_infinite_linear] rounded-full bg-primary p-2 text-white">
+                <Bike className="h-4 w-4" />
+              </div>
+              <style>{`
+                @keyframes bikeDrive {
+                  0% { left: 18%; }
+                  100% { left: 76%; }
+                }
+              `}</style>
+            </div>
+          </section>
+        )}
 
-                    <div className="space-y-1">
-                      <h4 className={`text-sm font-extrabold ${isCurrent ? 'text-primary' : isCompleted ? 'text-foreground' : 'text-muted-foreground'}`}>
-                        {step.label}
-                      </h4>
-                      <p className="text-xs text-muted-foreground font-medium">
-                        {step.desc}
-                      </p>
+        {order.status !== 'CANCELLED' && (
+          <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
+            <h2 className="mb-5 text-sm font-black uppercase text-muted-foreground">Status do pedido</h2>
+            <div className="space-y-5">
+              {steps.map((step, index) => {
+                const isComplete = index < currentStepIndex;
+                const isCurrent = index === currentStepIndex;
+
+                return (
+                  <div key={step.status} className="grid grid-cols-[28px_1fr] gap-3">
+                    <div
+                      className={`grid h-7 w-7 place-items-center rounded-full border text-xs ${
+                        isComplete
+                          ? 'border-primary bg-primary text-white'
+                          : isCurrent
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border bg-background text-muted-foreground'
+                      }`}
+                    >
+                      {isComplete ? <Check className="h-4 w-4 stroke-[4]" /> : index + 1}
+                    </div>
+                    <div>
+                      <h3 className={`text-sm font-black ${isCurrent ? 'text-primary' : 'text-foreground'}`}>{step.label}</h3>
+                      <p className="mt-0.5 text-xs font-medium text-muted-foreground">{step.desc}</p>
                     </div>
                   </div>
                 );
               })}
             </div>
-          </div>
+          </section>
         )}
 
-        {/* 6. Order Summary Details */}
-        <div className="bg-card rounded-2xl border border-border p-5 space-y-4 shadow-sm text-sm font-semibold">
-          <h3 className="font-extrabold text-sm uppercase tracking-wider text-muted-foreground border-b border-border pb-2 flex items-center gap-1.5">
-            <Receipt className="h-4.5 w-4.5 text-primary" /> Detalhes do Pedido
-          </h3>
+        <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
+          <h2 className="mb-4 flex items-center gap-2 border-b border-border pb-3 text-sm font-black uppercase text-muted-foreground">
+            <Receipt className="h-4 w-4 text-primary" />
+            Resumo do pedido
+          </h2>
 
-          <div className="space-y-3.5">
-            {order.items.map((item) => (
-              <div key={item.id} className="flex justify-between items-start gap-4">
-                <div className="space-y-0.5">
-                  <p className="text-foreground font-bold">{item.quantity}x {item.product?.name}</p>
-                  
-                  {item.options && JSON.parse(JSON.stringify(item.options)).length > 0 && (
-                    <div className="flex flex-wrap gap-1 text-[10px] text-muted-foreground">
-                      {JSON.parse(JSON.stringify(item.options)).map((opt: any, i: number) => (
-                        <span key={i} className="bg-muted px-1 py-0.2 rounded font-semibold">
-                          {opt.optionName}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+          <div className="space-y-3">
+            {order.items.map((item) => {
+              const options = JSON.parse(JSON.stringify(item.options || []));
+
+              return (
+                <div key={item.id} className="flex justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-black">
+                      {item.quantity}x {item.product?.name}
+                    </p>
+                    {options.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {options.map((option: any, index: number) => (
+                          <span key={index} className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground">
+                            {option.optionName}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-sm font-black">R$ {(item.price * item.quantity).toFixed(2)}</span>
                 </div>
-                <span className="text-foreground font-extrabold">R$ {(item.price * item.quantity).toFixed(2)}</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
-          <div className="border-t border-border pt-3 space-y-2 text-xs text-muted-foreground font-bold">
+          <div className="mt-4 space-y-2 border-t border-border pt-4 text-sm font-bold text-muted-foreground">
             <div className="flex justify-between">
               <span>Subtotal</span>
               <span className="text-foreground">R$ {order.subtotal.toFixed(2)}</span>
             </div>
             {order.discount > 0 && (
-              <div className="flex justify-between text-green-500">
+              <div className="flex justify-between text-green-600">
                 <span>Desconto</span>
                 <span>- R$ {order.discount.toFixed(2)}</span>
               </div>
             )}
             {order.deliveryType === 'DELIVERY' && (
               <div className="flex justify-between">
-                <span>Taxa de Entrega</span>
+                <span>Entrega</span>
                 <span className="text-foreground">R$ {order.deliveryFee.toFixed(2)}</span>
               </div>
             )}
-            <div className="flex justify-between text-base font-extrabold text-foreground border-t border-border pt-2">
+            <div className="flex justify-between border-t border-border pt-3 text-lg font-black text-foreground">
               <span>Total</span>
-              <span className="text-primary text-lg font-black">R$ {order.total.toFixed(2)}</span>
+              <span className="text-primary">R$ {order.total.toFixed(2)}</span>
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* 7. Delivery Location / Customer Info */}
         {order.deliveryType === 'DELIVERY' && (
-          <div className="bg-card rounded-2xl border border-border p-5 space-y-3 shadow-sm text-sm font-semibold">
-            <h3 className="font-extrabold text-sm uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <MapPin className="h-4.5 w-4.5 text-primary" /> Endereço de Entrega
-            </h3>
-            <p className="text-foreground">
-              {order.deliveryAddressStreet}, Nº {order.deliveryAddressNumber}
+          <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
+            <h2 className="mb-2 flex items-center gap-2 text-sm font-black uppercase text-muted-foreground">
+              <MapPin className="h-4 w-4 text-primary" />
+              Endereco de entrega
+            </h2>
+            <p className="text-sm font-black">
+              {order.deliveryAddressStreet}, n. {order.deliveryAddressNumber}
             </p>
-            <p className="text-xs text-muted-foreground font-semibold">
-              Bairro: {order.deliveryAddressNeighborhood}
-            </p>
-          </div>
+            <p className="mt-1 text-xs font-bold text-muted-foreground">Bairro: {order.deliveryAddressNeighborhood}</p>
+          </section>
         )}
 
-        {/* 8. Support shortcut */}
-        <div className="flex gap-2">
+        <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
           <a
             href="https://whatsapp.com"
             target="_blank"
-            className="flex-1 bg-green-600 hover:bg-green-700 text-white font-extrabold py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-green-600/10 text-sm transition-transform"
+            className="flex h-12 items-center justify-center gap-2 rounded-lg bg-green-600 px-5 text-sm font-black text-white transition hover:bg-green-700"
           >
-            <MessageCircle className="h-5 w-5" /> Suporte no WhatsApp
+            <MessageCircle className="h-5 w-5" />
+            Suporte no WhatsApp
           </a>
           <button
             onClick={() => router.push(`/t/${slug}`)}
-            className="bg-muted border border-border hover:bg-muted/80 text-foreground font-extrabold px-6 rounded-2xl text-sm"
+            className="h-12 rounded-lg border border-border bg-card px-5 text-sm font-black transition hover:bg-muted"
           >
-            Voltar Menu
+            Voltar ao menu
           </button>
         </div>
-
       </div>
-
-    </div>
+    </main>
   );
 }

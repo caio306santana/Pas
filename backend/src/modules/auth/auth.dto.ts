@@ -1,38 +1,61 @@
-import { IsEmail, IsNotEmpty, IsString, MinLength, IsOptional } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsEmail, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class LoginDto {
-  @ApiProperty({ example: 'admin@menino.com' })
-  @IsEmail({}, { message: 'E-mail inválido.' })
+  @ApiProperty({
+    description: 'E-mail usado para entrar no painel ou na conta do cliente.',
+    example: 'admin@menino.com',
+  })
+  @IsEmail({}, { message: 'E-mail invalido.' })
   email: string;
 
-  @ApiProperty({ example: 'admin123' })
-  @IsNotEmpty({ message: 'Senha é obrigatória.' })
-  @MinLength(6, { message: 'A senha deve conter no mínimo 6 caracteres.' })
+  @ApiProperty({
+    description: 'Senha da conta. Deve ter pelo menos 6 caracteres.',
+    example: 'admin123',
+    minLength: 6,
+  })
+  @IsNotEmpty({ message: 'Senha obrigatoria.' })
+  @MinLength(6, { message: 'A senha deve conter no minimo 6 caracteres.' })
   password: string;
 }
 
 export class CustomerRegisterDto {
-  @ApiProperty({ example: 'Carlos Cliente' })
+  @ApiProperty({
+    description: 'Nome completo do cliente.',
+    example: 'Carlos Cliente',
+  })
   @IsString()
-  @IsNotEmpty({ message: 'Nome é obrigatório.' })
+  @IsNotEmpty({ message: 'Nome obrigatorio.' })
   name: string;
 
-  @ApiProperty({ example: 'carlos@email.com' })
-  @IsEmail({}, { message: 'E-mail inválido.' })
+  @ApiProperty({
+    description: 'E-mail unico do cliente. No checkout atual ele pode ser derivado do telefone.',
+    example: '11988887777@menino.com',
+  })
+  @IsEmail({}, { message: 'E-mail invalido.' })
   email: string;
 
-  @ApiProperty({ example: '11988887777' })
+  @ApiProperty({
+    description: 'Telefone ou WhatsApp com DDD, somente numeros.',
+    example: '11988887777',
+  })
   @IsString()
-  @IsNotEmpty({ message: 'Telefone é obrigatório.' })
+  @IsNotEmpty({ message: 'Telefone obrigatorio.' })
   phone: string;
 
-  @ApiProperty({ example: '123456' })
-  @IsNotEmpty({ message: 'Senha é obrigatória.' })
-  @MinLength(6, { message: 'A senha deve conter no mínimo 6 caracteres.' })
+  @ApiProperty({
+    description: 'Senha de acesso do cliente.',
+    example: '11988887777123',
+    minLength: 6,
+  })
+  @IsNotEmpty({ message: 'Senha obrigatoria.' })
+  @MinLength(6, { message: 'A senha deve conter no minimo 6 caracteres.' })
   password: string;
 
-  @ApiProperty({ example: '123.456.789-00', required: false })
+  @ApiPropertyOptional({
+    description: 'CPF do cliente, quando informado.',
+    example: '12345678900',
+  })
   @IsOptional()
   @IsString()
   cpf?: string;

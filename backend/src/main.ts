@@ -7,7 +7,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000')
+  const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000,http://127.0.0.1:3000')
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);
@@ -29,12 +29,42 @@ async function bootstrap() {
   // Swagger setup
   const config = new DocumentBuilder()
     .setTitle('Menino Travesso API')
-    .setDescription('The API documentation for Menino Travesso multi-tenant delivery system')
+    .setDescription(
+      [
+        'API do delivery multi-tenant Menino Travesso.',
+        '',
+        'Use `x-tenant-id` nos endpoints de menu, pedidos e pagamentos.',
+        'Use `x-tenant-slug` nos endpoints de login/cadastro de cliente.',
+      ].join('\n'),
+    )
     .setVersion('1.0')
-    .addBearerAuth()
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        description: 'Token JWT retornado no login.',
+      },
+      'JWT',
+    )
+    .addTag('Auth', 'Login de equipe e clientes')
+    .addTag('Tenants', 'Dados da loja e configuracoes')
+    .addTag('Menu', 'Cardapio, categorias, produtos e imagens')
+    .addTag('Orders', 'Criacao, consulta e atualizacao de pedidos')
+    .addTag('Payments', 'PIX, cartao e webhooks do Mercado Pago')
     .build();
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+  SwaggerModule.setup('api/docs', app, document, {
+    swaggerOptions: {
+      persistAuthorization: true,
+      displayRequestDuration: true,
+      docExpansion: 'none',
+      filter: true,
+      tagsSorter: 'alpha',
+      operationsSorter: 'alpha',
+    },
+    customSiteTitle: 'Menino Travesso API Docs',
+  });
 
   const port = process.env.PORT || 3001;
   await app.listen(port);

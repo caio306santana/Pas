@@ -9,7 +9,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CreateCardPaymentDto, CreatePixPaymentDto } from './payment.dto';
 import { PaymentService } from './payment.service';
 
@@ -19,13 +19,24 @@ export class PaymentController {
   constructor(private readonly paymentService: PaymentService) {}
 
   @Get('public-key/:tenantId')
-  @ApiOperation({ summary: 'Get the Mercado Pago public key for a tenant' })
+  @ApiOperation({
+    summary: 'Buscar chave publica do Mercado Pago',
+    description: 'Retorna a chave publica configurada para tokenizacao de cartao no frontend.',
+  })
   getPublicKey(@Param('tenantId') tenantId: string) {
     return this.paymentService.getPublicKey(tenantId);
   }
 
   @Post('pix')
-  @ApiOperation({ summary: 'Create or retrieve the PIX payment for an order' })
+  @ApiOperation({
+    summary: 'Gerar pagamento PIX',
+    description: 'Cria ou reutiliza o pagamento PIX de um pedido e retorna QR Code/copia e cola.',
+  })
+  @ApiHeader({
+    name: 'x-tenant-id',
+    description: 'ID da loja dona do pedido.',
+    required: true,
+  })
   createPix(
     @Headers('x-tenant-id') tenantId: string,
     @Body() dto: CreatePixPaymentDto,
@@ -35,7 +46,15 @@ export class PaymentController {
   }
 
   @Post('card')
-  @ApiOperation({ summary: 'Pay an order with a tokenized card' })
+  @ApiOperation({
+    summary: 'Pagar com cartao tokenizado',
+    description: 'Finaliza o pagamento com um token de cartao gerado pelo Mercado Pago no frontend.',
+  })
+  @ApiHeader({
+    name: 'x-tenant-id',
+    description: 'ID da loja dona do pedido.',
+    required: true,
+  })
   createCard(
     @Headers('x-tenant-id') tenantId: string,
     @Body() dto: CreateCardPaymentDto,
@@ -46,7 +65,10 @@ export class PaymentController {
 
   @Post('webhook')
   @HttpCode(200)
-  @ApiOperation({ summary: 'Receive Mercado Pago payment notifications' })
+  @ApiOperation({
+    summary: 'Webhook Mercado Pago',
+    description: 'Recebe notificacoes de pagamento enviadas pelo Mercado Pago.',
+  })
   webhook(
     @Body() body: any,
     @Query('data.id') queryPaymentId: string,

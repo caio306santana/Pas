@@ -5,8 +5,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { apiRequest } from '@/lib/api';
-import { useCartStore, CartOption } from '@/store/cartStore';
-import { ChevronLeft, Plus, Minus, Check, AlertCircle } from 'lucide-react';
+import { CartOption, useCartStore } from '@/store/cartStore';
+import { AlertCircle, Check, ChevronLeft, Minus, Plus, ShoppingBag } from 'lucide-react';
 
 interface Option {
   id: string;
@@ -35,13 +35,11 @@ interface Product {
 export default function ProductCustomization() {
   const { slug, id } = useParams();
   const router = useRouter();
-  
+
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState('');
-  
-  // Maps group ID to array of selected option IDs
   const [selections, setSelections] = useState<Record<string, string[]>>({});
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -52,16 +50,13 @@ export default function ProductCustomization() {
       try {
         const prod = await apiRequest(`/menu/product/${id}`);
         setProduct(prod);
-        
-        // Initialize default selections
+
         const initialSelections: Record<string, string[]> = {};
         prod.optionGroups.forEach((group: OptionGroup) => {
-          // If minSelect is 1 and it's a radio select, we can auto-select the first option
-          if (group.minSelect === 1 && group.maxSelect === 1 && group.options.length > 0) {
-            initialSelections[group.id] = [group.options[0].id];
-          } else {
-            initialSelections[group.id] = [];
-          }
+          initialSelections[group.id] =
+            group.minSelect === 1 && group.maxSelect === 1 && group.options.length > 0
+              ? [group.options[0].id]
+              : [];
         });
         setSelections(initialSelections);
       } catch (err) {
@@ -70,15 +65,18 @@ export default function ProductCustomization() {
         setLoading(false);
       }
     }
-    if (id) loadProduct();
+
+    if (id) {
+      loadProduct();
+    }
   }, [id]);
 
   if (loading) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-background text-foreground">
         <div className="text-center space-y-4">
-          <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto"></div>
-          <p className="text-lg font-medium text-muted-foreground animate-pulse">Carregando detalhes do pastel...</p>
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
+          <p className="text-sm font-semibold text-muted-foreground">Carregando produto...</p>
         </div>
       </div>
     );
@@ -87,9 +85,12 @@ export default function ProductCustomization() {
   if (!product) {
     return (
       <div className="flex h-screen w-screen flex-col items-center justify-center bg-background text-foreground text-center p-6">
-        <h1 className="text-3xl font-extrabold text-primary">Produto não encontrado</h1>
-        <button onClick={() => router.push(`/t/${slug}`)} className="mt-4 bg-primary text-primary-foreground px-6 py-2 rounded-full font-semibold">
-          Voltar ao Cardápio
+        <h1 className="text-2xl font-black text-primary">Produto nao encontrado</h1>
+        <button
+          onClick={() => router.push(`/t/${slug}`)}
+          className="mt-5 rounded-lg bg-primary px-5 py-2.5 text-sm font-black text-primary-foreground"
+        >
+          Voltar ao cardapio
         </button>
       </div>
     );
@@ -97,77 +98,58 @@ export default function ProductCustomization() {
 
   const basePrice = product.promoPrice ?? product.price;
 
-  // Toggle selection handler
   const handleSelectOption = (groupId: string, optionId: string, group: OptionGroup) => {
     setSelections((prev) => {
       const selected = prev[groupId] || [];
-      
-      // Radio mode (maxSelect = 1)
+
       if (group.maxSelect === 1) {
-        return {
-          ...prev,
-          [groupId]: [optionId],
-        };
+        return { ...prev, [groupId]: [optionId] };
       }
-      
-      // Checkbox mode
+
       if (selected.includes(optionId)) {
-        // Remove option
-        return {
-          ...prev,
-          [groupId]: selected.filter((id) => id !== optionId),
-        };
-      } else {
-        // Add option if under maxSelect limit
-        if (selected.length < group.maxSelect) {
-          return {
-            ...prev,
-            [groupId]: [...selected, optionId],
-          };
-        }
-        return prev;
+        return { ...prev, [groupId]: selected.filter((selectedId) => selectedId !== optionId) };
       }
+
+      if (selected.length < group.maxSelect) {
+        return { ...prev, [groupId]: [...selected, optionId] };
+      }
+
+      return prev;
     });
   };
 
-  // Compute options prices
-  const getSelectedOptionsPrice = () => {
-    let priceSum = 0;
-    product.optionGroups.forEach((group) => {
-      const selectedIds = selections[group.id] || [];
-      selectedIds.forEach((optId) => {
-        const option = group.options.find((o) => o.id === optId);
-        if (option) priceSum += option.price;
-      });
-    });
-    return priceSum;
-  };
+  const optionsPriceTotal = product.optionGroups.reduce((sum, group) => {
+    const selectedIds = selections[group.id] || [];
+    return (
+      sum +
+      selectedIds.reduce((groupSum, optionId) => {
+        const option = group.options.find((item) => item.id === optionId);
+        return groupSum + (option?.price || 0);
+      }, 0)
+    );
+  }, 0);
 
-  const optionsPriceTotal = getSelectedOptionsPrice();
   const totalPrice = (basePrice + optionsPriceTotal) * quantity;
 
-  // Validate additions
   const handleAddToCart = () => {
-    // Check minSelect constraints for all groups
     for (const group of product.optionGroups) {
       const selectedIds = selections[group.id] || [];
       if (selectedIds.length < group.minSelect) {
-        setErrorMsg(`Por favor, selecione pelo menos ${group.minSelect} opção(ões) em "${group.name}".`);
+        setErrorMsg(`Selecione pelo menos ${group.minSelect} opcao em "${group.name}".`);
         return;
       }
     }
 
-    // Build options payload for store
     const chosenOptions: CartOption[] = [];
     product.optionGroups.forEach((group) => {
       const selectedIds = selections[group.id] || [];
-      selectedIds.forEach((optId) => {
-        const opt = group.options.find((o) => o.id === optId);
-        if (opt) {
+      selectedIds.forEach((optionId) => {
+        const option = group.options.find((item) => item.id === optionId);
+        if (option) {
           chosenOptions.push({
             groupName: group.name,
-            optionName: opt.name,
-            price: opt.price,
+            optionName: option.name,
+            price: option.price,
           });
         }
       });
@@ -187,147 +169,164 @@ export default function ProductCustomization() {
   };
 
   return (
-    <div className="relative min-h-screen bg-background text-foreground pb-32">
-      
-      {/* 1. Header Bar */}
-      <div className="fixed top-0 left-0 right-0 z-30 bg-card border-b border-border py-4 px-4 flex items-center justify-between">
-        <button onClick={() => router.back()} className="p-2 rounded-full hover:bg-muted transition-colors">
-          <ChevronLeft className="h-6 w-6 text-foreground" />
-        </button>
-        <span className="font-extrabold text-sm uppercase tracking-wider text-muted-foreground">Personalizar</span>
-        <div className="w-10"></div>
-      </div>
-
-      <div className="max-w-xl mx-auto px-4 pt-20 space-y-6">
-        
-        {/* 2. Product Image and Bio */}
-        {product.imageUrl && (
-          <div className="h-64 w-full rounded-2xl overflow-hidden bg-muted border border-border shadow-sm">
-            <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" />
-          </div>
-        )}
-        
-        <div className="space-y-2">
-          <h1 className="text-2xl font-extrabold tracking-tight">{product.name}</h1>
-          <p className="text-sm text-muted-foreground leading-relaxed">{product.description}</p>
-          <div className="text-xl font-extrabold text-primary">
-            R$ {basePrice.toFixed(2)}
-          </div>
+    <main className="min-h-screen bg-background text-foreground pb-28">
+      <header className="sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur">
+        <div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-4">
+          <button onClick={() => router.back()} className="rounded-lg p-2 transition hover:bg-muted" title="Voltar">
+            <ChevronLeft className="h-6 w-6" />
+          </button>
+          <span className="text-sm font-black uppercase text-muted-foreground">Personalizar item</span>
+          <div className="w-10" />
         </div>
+      </header>
+
+      <div className="mx-auto max-w-3xl px-4 py-6">
+        <section className="grid gap-5 md:grid-cols-[280px_1fr] md:items-start">
+          <div className="overflow-hidden rounded-lg border border-border bg-muted">
+            {product.imageUrl ? (
+              <img src={product.imageUrl} alt={product.name} className="aspect-square h-full w-full object-cover" />
+            ) : (
+              <div className="grid aspect-square place-items-center text-primary">
+                <ShoppingBag className="h-12 w-12" />
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <h1 className="text-3xl font-black leading-tight">{product.name}</h1>
+              <p className="mt-2 text-sm font-medium leading-6 text-muted-foreground">{product.description}</p>
+            </div>
+
+            <div className="rounded-lg border border-border bg-card p-4">
+              <p className="text-xs font-black uppercase text-muted-foreground">Preco base</p>
+              <div className="mt-1 flex items-center gap-2">
+                <span className="text-2xl font-black text-primary">R$ {basePrice.toFixed(2)}</span>
+                {product.promoPrice && (
+                  <span className="text-sm font-bold text-muted-foreground line-through">
+                    R$ {product.price.toFixed(2)}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
 
         {errorMsg && (
-          <div className="bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 p-4 rounded-xl flex items-center gap-3 border border-red-200 dark:border-red-900/50 text-sm font-semibold">
+          <div className="mt-5 flex items-center gap-3 rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm font-bold text-red-600">
             <AlertCircle className="h-5 w-5 shrink-0" />
             <span>{errorMsg}</span>
           </div>
         )}
 
-        {/* 3. Option Groups Selection */}
-        <div className="space-y-6">
+        <section className="mt-6 space-y-4">
           {product.optionGroups.map((group) => {
             const selectedIds = selections[group.id] || [];
+            const complete = selectedIds.length >= group.minSelect;
+
             return (
-              <div key={group.id} className="bg-card rounded-2xl border border-border p-5 space-y-4">
-                <div className="flex justify-between items-center pb-2 border-b border-border">
+              <div key={group.id} className="rounded-lg border border-border bg-card p-5">
+                <div className="mb-4 flex items-start justify-between gap-4 border-b border-border pb-3">
                   <div>
-                    <h3 className="font-bold text-base text-foreground">{group.name}</h3>
-                    <p className="text-xs text-muted-foreground font-semibold">
-                      {group.minSelect > 0 ? `Obrigatório • ` : `Opcional • `}
-                      Selecione {group.minSelect === group.maxSelect ? group.minSelect : `de ${group.minSelect} a ${group.maxSelect}`}
+                    <h2 className="font-black">{group.name}</h2>
+                    <p className="mt-1 text-xs font-bold text-muted-foreground">
+                      {group.minSelect > 0 ? 'Obrigatorio' : 'Opcional'} - selecione{' '}
+                      {group.minSelect === group.maxSelect ? group.minSelect : `de ${group.minSelect} a ${group.maxSelect}`}
                     </p>
                   </div>
-                  {selectedIds.length >= group.minSelect && (
-                    <span className="bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-300 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
+                  {complete && (
+                    <span className="rounded-full bg-green-100 px-2 py-1 text-[10px] font-black text-green-800 dark:bg-green-950 dark:text-green-200">
                       OK
                     </span>
                   )}
                 </div>
 
-                <div className="space-y-3">
-                  {group.options.map((opt) => {
-                    const isSelected = selectedIds.includes(opt.id);
+                <div className="space-y-2">
+                  {group.options.map((option) => {
+                    const isSelected = selectedIds.includes(option.id);
+
                     return (
-                      <div
-                        key={opt.id}
+                      <button
+                        key={option.id}
                         onClick={() => {
                           setErrorMsg('');
-                          handleSelectOption(group.id, opt.id, group);
+                          handleSelectOption(group.id, option.id, group);
                         }}
-                        className={`flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all duration-200 ${
-                          isSelected
-                            ? 'bg-primary/5 border-primary shadow-sm'
-                            : 'border-border hover:bg-muted'
+                        className={`flex w-full items-center justify-between gap-4 rounded-lg border p-3 text-left transition ${
+                          isSelected ? 'border-primary bg-primary/10' : 'border-border hover:bg-muted'
                         }`}
                       >
-                        <div className="flex items-center gap-3">
-                          <div className={`h-5 w-5 rounded-md border flex items-center justify-center transition-all ${
-                            isSelected ? 'bg-primary border-primary text-white scale-105' : 'border-border bg-background'
-                          }`}>
-                            {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
-                          </div>
-                          <span className="font-semibold text-sm">{opt.name}</span>
-                        </div>
-                        {opt.price > 0 && (
-                          <span className="text-xs font-bold text-primary">+ R$ {opt.price.toFixed(2)}</span>
+                        <span className="flex items-center gap-3">
+                          <span
+                            className={`grid h-5 w-5 place-items-center rounded border ${
+                              isSelected ? 'border-primary bg-primary text-white' : 'border-border bg-background'
+                            }`}
+                          >
+                            {isSelected && <Check className="h-3 w-3 stroke-[4]" />}
+                          </span>
+                          <span className="text-sm font-bold">{option.name}</span>
+                        </span>
+                        {option.price > 0 && (
+                          <span className="text-xs font-black text-primary">+ R$ {option.price.toFixed(2)}</span>
                         )}
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
               </div>
             );
           })}
-        </div>
 
-        {/* 4. Special Notes */}
-        <div className="bg-card rounded-2xl border border-border p-5 space-y-3">
-          <h3 className="font-bold text-base">Alguma observação?</h3>
-          <textarea
-            placeholder="Ex: sem cebola, sem milho, bem passado, etc."
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            className="w-full h-24 p-3 rounded-xl bg-background border border-border text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-          />
-        </div>
-
-        {/* 5. Quantity Controls */}
-        <div className="flex items-center justify-between bg-card rounded-2xl border border-border p-5">
-          <span className="font-bold text-base">Quantidade</span>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setQuantity(Math.max(1, quantity - 1))}
-              className="p-2.5 rounded-full border border-border hover:bg-muted transition-colors"
-            >
-              <Minus className="h-4 w-4" />
-            </button>
-            <span className="text-lg font-extrabold w-6 text-center">{quantity}</span>
-            <button
-              onClick={() => setQuantity(quantity + 1)}
-              className="p-2.5 rounded-full border border-border hover:bg-muted transition-colors"
-            >
-              <Plus className="h-4 w-4" />
-            </button>
+          <div className="rounded-lg border border-border bg-card p-5">
+            <label className="text-sm font-black" htmlFor="notes">
+              Observacoes
+            </label>
+            <textarea
+              id="notes"
+              placeholder="Ex: sem cebola, massa mais crocante, retirar molho..."
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              className="mt-3 h-24 w-full resize-none rounded-lg border border-border bg-background p-3 text-sm font-medium outline-none transition focus:border-primary"
+            />
           </div>
-        </div>
 
+          <div className="flex items-center justify-between rounded-lg border border-border bg-card p-5">
+            <span className="font-black">Quantidade</span>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                className="rounded-lg border border-border p-2 transition hover:bg-muted"
+                title="Diminuir"
+              >
+                <Minus className="h-4 w-4" />
+              </button>
+              <span className="w-8 text-center text-lg font-black">{quantity}</span>
+              <button
+                onClick={() => setQuantity(quantity + 1)}
+                className="rounded-lg border border-border p-2 transition hover:bg-muted"
+                title="Aumentar"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </section>
       </div>
 
-      {/* 6. Sticky Total Bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 bg-card border-t border-border py-5 px-6 shadow-2xl">
-        <div className="max-w-xl mx-auto flex items-center justify-between gap-4">
-          <div className="flex flex-col">
-            <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Total</span>
-            <span className="text-2xl font-extrabold text-foreground">R$ {totalPrice.toFixed(2)}</span>
+      <footer className="fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-card/95 px-4 py-3 shadow-2xl backdrop-blur">
+        <div className="mx-auto flex max-w-3xl items-center justify-between gap-4">
+          <div>
+            <p className="text-xs font-black uppercase text-muted-foreground">Total</p>
+            <p className="text-2xl font-black">R$ {totalPrice.toFixed(2)}</p>
           </div>
           <button
             onClick={handleAddToCart}
-            className="flex-1 bg-primary text-primary-foreground font-extrabold py-4 px-6 rounded-2xl shadow-lg shadow-primary/20 hover:scale-[1.01] transition-transform text-center text-sm"
+            className="h-14 flex-1 rounded-lg bg-primary px-5 text-sm font-black text-primary-foreground transition hover:brightness-95"
           >
-            Adicionar à sacola
+            Adicionar a sacola
           </button>
         </div>
-      </div>
-
-    </div>
+      </footer>
+    </main>
   );
 }
